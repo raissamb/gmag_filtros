@@ -4,3 +4,5 @@
 .spyproject
 output/
 refs/
+*.pyc
+__pycache__/
