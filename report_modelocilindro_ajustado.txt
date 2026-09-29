@@ -1,0 +1,8 @@
+=== RELATÓRIO DO MODELO DE ANOMALIA GEOFÍSICA ===
+
+Descrição do Programa:
+Este programa em Python gera malhas de dados tridimensionais (modelos numéricos) para a representação de estruturas geológicas/anomalias (como cilindro simples e modelo complexo de base alargada). Ele calcula as coordenadas espaciais, limites de profundidade (topo e base), densidade e suscetibilidade magnética, exportando os resultados em arquivos de texto formatados e renderizando visualizações interativas em 3D usando voxels.
+
+Parâmetros Magnéticos:
+- Campo magnético indutor (campo externo regional): declinação de 3,5° e inclinação de 73,5°.
+- Magnetização remanente predominantemente medida em amostras: declinação de 345° e inclinação de 60°.
