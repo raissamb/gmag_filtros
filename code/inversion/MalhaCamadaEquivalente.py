@@ -203,15 +203,15 @@ def main() -> None:
     """Build and display an example equivalent-layer grid."""
 
     # Number of prisms
-    nprism_x = 3
-    nprism_y = 4
+    nprism_x = 42
+    nprism_y = 42
 
     # Grid limits
-    xmin = -3.0
-    xmax = 3.0
+    xmin = 0 #-3.0
+    xmax = 64 #3.0
 
-    ymin = -4.0
-    ymax = 4.0
+    ymin = 0#-4.0
+    ymax = 64 #4.0
 
     # Equivalent-layer depth
     z_top = 4.0
