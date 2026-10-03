@@ -112,10 +112,14 @@ pathname.mkdir(exist_ok=True, parents=True)
 ut.plot_field_contourf(coordinates[0], 
                         coordinates[1],
                         field_data[0],
-                        "gz_1",
+                        "TFA",
                         "Easting (m)",
                         "Northing (m)",
-                        "mGal",
+                        "nT",
                         Path(pathname / f"{modelname}_gz_1.png"),
                         False)
 
+figname: Union[str, Path],
+                        levels: Optional[Union[list, np.ndarray, int]] = None,
+                        cmap: str = "viridis",
+                        show: bool = False) -> None:

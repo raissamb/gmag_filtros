@@ -7,7 +7,8 @@ This module contains utility functions like plotting.
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-from typing import List, Dict, Tuple, Union
+from typing import Optional, Union, Any
+
 
 # Functions
 
@@ -45,6 +46,7 @@ def add_gaussian_noise(field: np.ndarray,
     return noisy_field
 
 
+
 def plot_field_contourf(xcoords: np.ndarray, 
                         ycoords: np.ndarray,
                         field: np.ndarray,
@@ -52,50 +54,69 @@ def plot_field_contourf(xcoords: np.ndarray,
                         xlabel: str,
                         ylabel: str,
                         unit: str,
-                        figname: (str | Path),
+                        figname: Union[str, Path],
+                        levels: Optional[Union[list, np.ndarray, int]] = None,
+                        cmap: str = "viridis",
                         show: bool = False) -> None:
     """
     Function to plot field data.
 
     Parameters
     ----------
-    xcoords : 2d Array
+    xcoords : np.ndarray
         2D array containing the coordinates in the X axis, Cartesian System.
-    ycoords : TYPE
-        DESCRIPTION.
-    field : TYPE
-        DESCRIPTION.
-    title : TYPE
-        DESCRIPTION.
-    xlabel : TYPE
-        DESCRIPTION.
-    ylabel : TYPE
-        DESCRIPTION.
-    unit : TYPE
-        DESCRIPTION.
-    figname : TYPE
-        DESCRIPTION.
-    mode : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
-
+    ycoords : np.ndarray
+        2D array containing the coordinates in the Y axis, Cartesian System.
+    field : np.ndarray
+        2D array of the field data to be plotted.
+    title : str
+        Plot title.
+    xlabel : str
+        Label for the X axis.
+    ylabel : str
+        Label for the Y axis.
+    unit : str
+        Unit label for the colorbar.
+    figname : str | Path
+        Filename or Path object to save the figure.
+    levels : list | np.ndarray | int | None, optional
+        Determines the number and positions of the contour lines / regions.
+        If None, matplotlib automatically determines the levels.
+    cmap : str, optional
+        Colormap to use (default is 'viridis').
+    show : bool, optional
+        If True, displays the figure. If False, closes the figure to save memory (default is False).
     """
 
-    fig = plt.figure()
-    plt.contourf(xcoords, ycoords, field)
+    fig = plt.figure()    
+    # Explicitly type the dictionary to accept mixed value types
+    contour_kwargs: dict[str, Any] = {"cmap": cmap}
+    
+    # Bundle keyword arguments to handle optional custom levels
+    if levels is not None:
+        contour_kwargs["levels"] = levels
+        contour_kwargs["extend"] = "both"
+        
+    plt.contourf(xcoords, ycoords, field, **contour_kwargs)
+
+    
+    # # Bundle keyword arguments to handle optional custom levels
+    # contour_kwargs = {"cmap": cmap}
+    # if levels is not None:
+    #     contour_kwargs["levels"] = levels
+    #     contour_kwargs["extend"] = "both"
+        
+    # plt.contourf(xcoords, ycoords, field, **contour_kwargs)
+    
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.gca().set_aspect("equal")
     plt.colorbar(label=unit)
+    
     fig.savefig(figname, dpi=300, bbox_inches="tight")
 
-    # Handling Display vs. Memory
     if show:
         plt.show()
     else:
         plt.close(fig)
-
