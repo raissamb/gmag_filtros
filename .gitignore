@@ -1,8 +1,11 @@
 # Folders
-.venv
-.vscode
-.spyproject
+.venv/
+.vscode/
+.spyproject/
 output/
 refs/
-*.pyc
+docs/
 __pycache__/
+
+# Files
+*.pyc

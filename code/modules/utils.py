@@ -120,3 +120,108 @@ def plot_field_contourf(xcoords: np.ndarray,
         plt.show()
     else:
         plt.close(fig)
+
+
+
+
+def compare_eq_layer_results(
+    xcoord, ycoord,
+    obs, predicted,
+    modelname, figname, reg,
+    show=False
+):
+    """
+    Plots Target vs. Predicted data and the Residuals with consistent scaling.
+
+    Parameters
+    ----------
+    xcoord, ycoord : np.ndarray
+        Coordinates for the grid (usually meshgrid).
+    obs : np.ndarray
+        Observed data grid.
+    predicted : np.ndarray
+        Predicted (Calculated) data grid.
+    modelname : str
+        Name of the model for the title.
+    rmse : float
+        Root Mean Square Error value.
+    figname : str or Path
+        Path to save the figure.
+    reg : float or str
+        Regularization parameter value.
+    show : bool
+        Whether to display the plot window.
+    """
+
+    # 1. Calculate Residuals
+    residual = obs - predicted
+    rmse = calculate_rmse(obs, predicted)
+
+    # 2. Determine Global Scales for Obs/Pred
+    # This ensures "Yellow" means the same nT value in both plots.
+    global_min = min(np.min(obs), np.min(predicted))
+    global_max = max(np.max(obs), np.max(predicted))
+    # 21 levels for smooth contour
+    levels = np.linspace(global_min, global_max, 21)
+
+    # 3. Setup Figure (1 row, 3 columns)
+    fig, (ax1, ax2, ax3) = plt.subplots(
+        1, 3, figsize=(16, 5), constrained_layout=True)
+
+    # --- Plot 1: Observed ---
+    # We use 'vmin' and 'vmax' to lock the scale
+    c1 = ax1.contourf(xcoord, ycoord, obs, levels=levels, cmap='jet',
+                      vmin=global_min, vmax=global_max)
+    fig.colorbar(c1, ax=ax1, label='nT', orientation='vertical')
+    ax1.set_title('Input Data')
+    ax1.set_xlabel('Easting (m)')
+    ax1.set_ylabel('Northing (m)')
+
+    # --- Plot 2: Predicted ---
+    # Must use same levels and cmap as Observed!
+    c2 = ax2.contourf(xcoord, ycoord, predicted, levels=levels, cmap='jet',
+                      vmin=global_min, vmax=global_max)
+    fig.colorbar(c2, ax=ax2, label='nT', orientation='vertical')
+    ax2.set_title(f'Predicted \nReg: {reg}')
+    ax2.set_xlabel('Easting (m)')
+    # Y-label optional here to save space
+
+    # --- Plot 3: Residuals (Obs - Pred) ---
+    #
+    # Residuals usually center on 0, so we use a DIVERGING colormap (blue-white-red).
+    # We create a symmetric scale centered on 0.
+    res_abs_max = np.max(np.abs(residual))
+    c3 = ax3.contourf(xcoord, ycoord, residual, cmap='seismic',
+                      levels=21, vmin=-res_abs_max, vmax=res_abs_max)
+    fig.colorbar(c3, ax=ax3, label='Residual (nT)', orientation='vertical')
+    ax3.set_title(f'Residuals (Obs - Pred)\nRMSE: {rmse:.4f}')
+    ax3.set_xlabel('Easting (m)')
+
+    # Main Title
+    fig.suptitle(f'Inversion Results: {
+                 modelname}', fontsize=16, fontweight='bold')
+
+    # Save
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"Comparison plot saved to: {figname}")
+
+    # Memory Management
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+def calculate_rmse(targets, predictions):
+    """
+    Calculates RMSE using NumPy.
+
+    Args:
+        predictions (np.array): Array of predicted values.
+        targets (np.array): Array of actual (observed) values.
+
+    Returns:
+        float: The Root Mean Square Error.
+    """
+    return np.sqrt(np.mean((predictions - targets) ** 2))
+

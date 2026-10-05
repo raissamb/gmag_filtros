@@ -119,7 +119,3 @@ ut.plot_field_contourf(coordinates[0],
                         Path(pathname / f"{modelname}_gz_1.png"),
                         False)
 
-figname: Union[str, Path],
-                        levels: Optional[Union[list, np.ndarray, int]] = None,
-                        cmap: str = "viridis",
-                        show: bool = False) -> None:
