@@ -46,9 +46,10 @@ df = pd.read_csv(DATA_FOLDER/"wang2015_mag.csv")
 # Here we take a centered window of 2500 points:
 x_unique = np.unique(df["X"].to_numpy())[::13][:50]
 y_unique = np.unique(df["Y"].to_numpy())[::13][:50]
-
 df_sub = df[df["X"].isin(x_unique) & df["Y"].isin(y_unique)].copy()
 
+# Enforce strict spatial sorting (Row-major: Y then X) BEFORE extracting arrays
+df_sub = df_sub.sort_values(by=["Y", "X"]).reset_index(drop=True)
 easting = df_sub["X"].to_numpy()
 northing = df_sub["Y"].to_numpy()
 upwards = df_sub["Z"].to_numpy()
@@ -114,7 +115,7 @@ rmse = np.sqrt(np.mean(residuals**2))
 print(f"Inversion RMSE: {rmse:.4f} nT")
 print(f"Optimal Regularization (mu): {mu_opt:.2e}")
 print(f"Optimized Inversion RMSE: {rmse_opt:.4f} nT")
-
+print(f"Negative values for magnetization: {np.count_nonzero(p_tilde < 0.0) }")
 
 # ---------------------------------------------------------
 # 6. Plot results
@@ -124,6 +125,7 @@ predicted_data_grid = predicted_data.reshape(grid_shape)
 d_obs_grid = d_obs.reshape(grid_shape)
 northing_grid = northing.reshape(grid_shape)
 easting_grid = easting.reshape(grid_shape)
+#p_tilde_grid = p_tilde.reshape(grid_shape)
 
 figname = f"{OUTPUT_FOLDER}/wang2015/comparacao.png"
 
@@ -133,3 +135,18 @@ ut.compare_eq_layer_results(
     "Wang et al 2015 reduced", figname, mu_opt,
     False)
 
+figname2 = f"{OUTPUT_FOLDER}/wang2015/magnetizacao_distribuicao.png"
+ut.plot_physical_property_distribution_matrix(easting, 
+                              northing, 
+                              p_tilde, 
+                              "Magnetization Intensity distribution",
+                              figname2,
+                              "turbo")
+
+
+# ut.plot_matrix(p_tilde_grid,
+#     "Magnetization Intensity distribution",
+#     figname2,
+#     False,
+#     'lower',
+#     'viridis')

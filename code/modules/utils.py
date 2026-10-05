@@ -7,7 +7,7 @@ This module contains utility functions like plotting.
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Literal
 
 
 # Functions
@@ -98,15 +98,6 @@ def plot_field_contourf(xcoords: np.ndarray,
         contour_kwargs["extend"] = "both"
         
     plt.contourf(xcoords, ycoords, field, **contour_kwargs)
-
-    
-    # # Bundle keyword arguments to handle optional custom levels
-    # contour_kwargs = {"cmap": cmap}
-    # if levels is not None:
-    #     contour_kwargs["levels"] = levels
-    #     contour_kwargs["extend"] = "both"
-        
-    # plt.contourf(xcoords, ycoords, field, **contour_kwargs)
     
     plt.title(title)
     plt.xlabel(xlabel)
@@ -225,3 +216,98 @@ def calculate_rmse(targets, predictions):
     """
     return np.sqrt(np.mean((predictions - targets) ** 2))
 
+
+def plot_matrix(
+    matrix: np.ndarray,
+    title: str,
+    figname: Union[str, Path],
+    show: bool = False,
+    origin: Literal['upper', 'lower'] = 'lower',  # FIXED: Restricts strings to exact valid types
+    cmap: str = 'viridis'
+) -> None:
+    """
+    Plots a matrix as a heatmap and saves it to a file.
+
+    This function uses the Object-Oriented Matplotlib API for better control
+    and memory management.
+
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Input matrix to be plotted.
+    title : str
+        Title for the figure.
+    figname : str or Path
+        Output path for the saved figure.
+    show : bool, optional
+        If True, displays the plot. If False, just saves it. Default is False.
+    origin : {'lower', 'upper'}, optional
+        'lower' (default) places (0,0) at bottom-left (Cartesian/Map).
+        'upper' places (0,0) at top-left (Matrix standard).
+    cmap : str, optional
+        Colormap to use. Default is 'viridis'.
+
+    Returns
+    -------
+    None
+    """
+    # 1. Use Object-Oriented API (Safer)
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # 2. Plot data - Pylance is completely happy now because the literal sets match perfectly!
+    im = ax.imshow(matrix, cmap=cmap, origin=origin, aspect='auto')
+
+    # 3. Add Colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('Value')
+
+    # 4. Labels and Title
+    ax.set_title(f'{title}\nShape: {matrix.shape}')
+    ax.set_xlabel('Column Index')
+    ax.set_ylabel('Row Index')
+
+    # 5. Save the figure
+    save_path = Path(figname)
+    fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    print(f"Figure saved to: {save_path}")
+
+    # 6. Handling Display vs. Memory
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+def plot_physical_property_distribution_matrix(easting: np.ndarray, 
+                              northing: np.ndarray, 
+                              p_est: np.ndarray, 
+                              title: str,
+                              figname: Union[str, Path],
+                              cmap: str = "turbo") -> None:
+    """
+    Reshapes a 1D estimated parameter vector into a 2D matrix and plots 
+    the discrete physical property distribution of the equivalent layer.
+    """
+    # 1. Determine the grid dimensions dynamically
+    nx = len(np.unique(easting))
+    ny = len(np.unique(northing))
+    
+    # 2. Reshape the 1D arrays into 2D spatial matrices
+    X = easting.reshape((ny, nx))
+    Y = northing.reshape((ny, nx))
+    P = p_est.reshape((ny, nx))
+    
+    # 3. Generate the plot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # pcolormesh visually represents the discrete blocks (prisms) perfectly
+    pc = ax.pcolormesh(X, Y, P, cmap=cmap, shading="nearest")
+    
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    ax.set_xlabel("Easting (m)")
+    ax.set_ylabel("Northing (m)")
+    fig.colorbar(pc, label="Magnetization (A/m)")
+    
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    plt.close(fig)
