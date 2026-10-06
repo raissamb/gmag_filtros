@@ -49,10 +49,12 @@ def _dircos(incl, decl, azim):
 
 
 
-def _infinity_z_box(x0, y0, z0, x1, y1, z1, x2, y2, mi, md, fi, fd, m, theta):
+def _infinity_z_box(x0, y0, z0, x1, y1, z1, x2, y2, mi, md, fi, fd, theta):
     """
     Compute the total-field magnetic anomaly produced by
     a rectangular prism that extends infinitely downward.
+
+    MODIFICADA (REMOVEU m) PARA USO COM DMBOX PARA CALCULO DA JACOBIANA.
     
     Parameters
     ----------
@@ -74,9 +76,6 @@ def _infinity_z_box(x0, y0, z0, x1, y1, z1, x2, y2, mi, md, fi, fd, m, theta):
     fi, fd : float
         Inclination and declination of the ambient magnetic field,
         in degrees.
-    
-    m : float
-        Magnetization intensity in A/m.
     
     theta : float
         Azimuth of the x-axis, in degrees.
@@ -168,7 +167,7 @@ def _infinity_z_box(x0, y0, z0, x1, y1, z1, x2, y2, mi, md, fi, fd, m, theta):
             t += sign * (tlog + tatan)
 
     # Conversão para nT
-    t *= m * cm * t2nt
+    t *= cm * t2nt
 
     return t
 
@@ -240,11 +239,80 @@ def mbox(x0, y0, z0, x1, y1, z1, x2, y2, z2, mi, md, fi, fd, m, theta):
             "z_bottom must be greater than z_top "
             "because the z-axis is positive downward." )
     
-    t_top      =_infinity_z_box(x0, y0, z0, x1, y1, z1, x2, y2, mi, md, fi, fd, m, theta)
-    t_bottom=_infinity_z_box(x0, y0, z0, x1, y1, z2, x2, y2, mi, md, fi, fd, m, theta)
-    return t_top-t_bottom
+    t_top      =_infinity_z_box(x0, y0, z0, x1, y1, z1, x2, y2, mi, md, fi, fd, theta)
+    t_bottom=_infinity_z_box(x0, y0, z0, x1, y1, z2, x2, y2, mi, md, fi, fd, theta)
+    return m*(t_top-t_bottom)
 
+def dmbox(x0, y0, z0, x1, y1, z1, x2, y2, z2, mi, md, fi, fd, theta):
+    """
+    Compute the total-field magnetic anomaly produced by a finite
+    rectangular prism.
 
+    USAR PARA CALCULAR JACOBIANA.
+
+    The prism is bounded by x1 and x2 along the x-direction, by y1
+    and y2 along the y-direction, and by z_top and z_bottom along the
+    vertical direction. The z-axis is assumed positive downward.
+    
+    The total-field magnetic anomaly of a finite rectangular prism is
+    computed by calling _infinity_z_box twice. The first call evaluates
+    the anomaly produced by a semi-infinite prism extending downward
+    from the top of the finite prism, while the second call evaluates
+    the anomaly produced by a semi-infinite prism extending downward
+    from its bottom. The response of the finite prism is then obtained
+    by subtracting:
+        t = t_top - t_bottom
+    where 
+        t_top       = _infinity_z_box(..., z_top=z1, ...) and
+        t_bottom = _infinity_z_box(..., z_bottom=z2, ...).
+
+    Parameters
+    ----------
+    x0, y0, z0 : float
+        Coordinates of the observation point.
+
+    x1, x2 : float
+        Minimum and maximum x-coordinates of the prism.
+
+    y1, y2 : float
+        Minimum and maximum y-coordinates of the prism.
+
+    z_top : float
+        Depth of the top surface of the prism.
+
+    z_bottom : float
+        Depth of the bottom surface of the prism.
+
+    mi : float
+        Inclination of the prism magnetization, in degrees.
+
+    md : float
+        Declination of the prism magnetization, in degrees.
+
+    fi : float
+        Inclination of the ambient magnetic field, in degrees.
+
+    fd : float
+        Declination of the ambient magnetic field, in degrees.
+
+    theta : float
+        Azimuth of the x-axis, in degrees.
+
+    Returns
+    -------
+    t : float
+        Total-field magnetic anomaly produced by the finite prism,
+        in nT.
+    """
+    
+    if z2 <= z1:
+        raise ValueError(
+            "z_bottom must be greater than z_top "
+            "because the z-axis is positive downward." )
+    
+    t_top      =_infinity_z_box(x0, y0, z0, x1, y1, z1, x2, y2, mi, md, fi, fd, theta)
+    t_bottom=_infinity_z_box(x0, y0, z0, x1, y1, z2, x2, y2, mi, md, fi, fd, theta)
+    return (t_top-t_bottom)
 
 
 def build_prism_layer(N:int, 
