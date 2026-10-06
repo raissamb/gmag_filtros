@@ -150,3 +150,41 @@ ut.plot_physical_property_distribution_matrix(easting,
 #     False,
 #     'lower',
 #     'viridis')
+
+
+# =============
+# build G standard way
+
+
+# x1 = 
+# x2 = prisms_layer[:,1]
+# y1 = prisms_layer[:,2]
+# y2 = prisms_layer[:,3]
+# z2 = prisms_layer[:,4]
+# z2 = prisms_layer[:,5]
+
+
+mat_g = np.zeros([2500,2500])
+for i in range(2500):
+    x0 = easting[i]
+    y0 = northing[i]
+    z0 = upwards[i]
+    
+    for j in range(2500):
+        x1 = prisms_layer[j,0]
+        x2 = prisms_layer[j,1]
+        y1 = prisms_layer[j,2]
+        y2 = prisms_layer[j,3]
+        z1 = (-1) * prisms_layer[j,5]
+        z2 = (-1) * prisms_layer[j,4]
+        
+        mi = inc
+        md = dec
+        fi = inc
+        fd = dec
+        theta = 0
+
+        mat_g[i,j] = kn.dmbox(x0, y0, z0, x1, y1, z1, x2, y2, z2, mi, md, fi, fd, theta)
+
+
+
