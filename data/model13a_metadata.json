@@ -1,0 +1,30 @@
+{
+    "submodel_id": "model13a",
+    "base_model": "model13",
+    "observation_heights": {
+        "z1": 0.0,
+        "z2": 0.51
+    },
+    "source_geometry": [
+        [
+            25.0,
+            75.0,
+            25.0,
+            75.0,
+            -11.0,
+            -1.0
+        ]
+    ],
+    "source_properties": [
+        [
+            3.0,
+            15.0,
+            0.0
+        ]
+    ],
+    "noise_setup": {
+        "percentage": 3,
+        "seed": 23,
+        "calculated_sigma": 22.585531682169183
+    }
+}
