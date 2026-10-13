@@ -645,3 +645,48 @@ def run_tikhonov_l_curve_scan_ces(mat_g: np.ndarray, d: np.ndarray, mat_rtr,
     print(f"L-Curve Peak Memory: {peak_ram_mb:.2f} MB")
     
     return df_metrics, best_run, sweep_time, peak_ram_mb
+
+
+
+def get_direction_cosines_enu(inc: float, dec: float) -> np.ndarray:
+    """
+    Calculates direction cosines for an East-North-Up (ENU) coordinate system.
+
+    Parameters
+    ----------
+    inc : float
+        Inclination in degrees (positive DOWN towards the Earth's center).
+    dec : float
+        Declination in degrees (angle measured clockwise from true NORTH).
+
+    Returns
+    -------
+    np.ndarray
+        A 1D array of shape (3,) containing the unit vector components: 
+        [u_east, u_north, u_up].
+        
+    Harmonica ENU orientation:
+        Harmonica X is Easting, East component = cos(I) * sin(D)
+        Harmonica Y is Northing, North component = cos(I) * cos(D)
+        Harmonica Z is Up, Vertical component = -sin(I) (because I is positive down)
+    """
+    rinc = np.deg2rad(inc)
+    rdec = np.deg2rad(dec)
+
+    # Harmonica ENU system mapping alignment
+    ux = np.cos(rinc) * np.sin(rdec)  # Easting component
+    uy = np.cos(rinc) * np.cos(rdec)  # Northing component
+    uz = -np.sin(rinc)                # Upward component (negative due to positive down inc)
+
+    return np.array([ux, uy, uz])
+
+
+def get_magnetization_vector_enu(intensity: float, cosine_dir: np.ndarray):
+    # Conversion to Cartesian (ENU)
+    # Z is Up, Inc is positive Down -> Mz = -sin(I)
+    mag_e = intensity * cosine_dir[0]
+    mag_n = intensity * cosine_dir[1]
+    mag_u = -intensity * cosine_dir[2]
+    magnetization = (mag_e, mag_n, mag_u)
+
+    return magnetization
