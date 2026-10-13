@@ -13,6 +13,7 @@ import pandas as pd
 import tracemalloc
 import time
 from scipy.linalg import cho_factor, cho_solve
+from typing import Optional
 
 def _dircos(incl, decl, azim):
     """
@@ -335,7 +336,7 @@ def build_prism_layer(N:int,
     return prisms
 
 
-def build_jacobian_with_profiling(N: int, 
+def build_magnetic_jacobian_with_profiling(N: int, 
                                   easting: np.ndarray, 
                                   northing: np.ndarray, 
                                   upwards:np.ndarray, 
@@ -382,6 +383,108 @@ def build_jacobian_with_profiling(N: int,
     print(f"Peak Memory Allocated: {peak_ram_mb:.2f} MB")
     
     return G, assembly_time, peak_ram_mb
+
+
+def build_gravity_jacobian_with_profiling(N: int, 
+                                          easting: np.ndarray, 
+                                          northing: np.ndarray, 
+                                          upwards: np.ndarray, 
+                                          prisms_layer: np.ndarray):
+
+    # ---------------------------------------------------------
+    # Assemble Gravity Jacobian Matrix G and Track Computational Cost
+    # ---------------------------------------------------------
+    tracemalloc.start()
+    t0 = time.perf_counter()
+    
+    # Allocate the dense N x N Jacobian matrix
+    G = np.empty((N, N), dtype=np.float64)
+    obs_coords = (easting, northing, upwards)
+    
+    # Assemble G column-by-column:
+    # Column j contains the vertical gravitational acceleration (g_z) 
+    # produced by the j-th prism at all observation points
+    for j in range(N):
+        # Compute the analytical gravity field of the single j-th prism
+        # Using a unit density of 1.0 kg/m^3. The result is in mGal.
+        g_z = hm.prism_gravity(
+            obs_coords, 
+            [prisms_layer[j]], 
+            density=[1.0], 
+            field="g_z"
+        )
+        G[:, j] = g_z
+    
+    t1 = time.perf_counter()
+    current_mem, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    
+    assembly_time = t1 - t0
+    peak_ram_mb = peak_mem / (1024 ** 2)
+    
+    print(f"Gravity Jacobian G shape: {G.shape}")
+    print(f"G Assembly Time: {assembly_time:.2f} s")
+    print(f"Peak Memory Allocated: {peak_ram_mb:.2f} MB")
+    
+    return G, assembly_time, peak_ram_mb
+
+
+def compute_continuation_transformation(
+    N: int, 
+    easting: np.ndarray, 
+    northing: np.ndarray, 
+    upwards: np.ndarray, 
+    prisms_layer: np.ndarray, 
+    p_est: np.ndarray,
+    data_type: str,
+    dz: float, 
+    incs: Optional[float] = None, 
+    decs: Optional[float] = None
+) -> tuple:
+    """
+    Computes the upward or downward continuation of the field using the equivalent layer.
+    """
+    tracemalloc.start()
+    t0 = time.perf_counter()
+
+    # Calculate the new observation heights
+    new_upwards = upwards + dz
+    
+    print(f"Building Transformation Jacobian for dz={dz}m continuation...")
+    
+    # Reuse your existing Jacobian builders for the new heights
+    if data_type in ["magnetic", "mag"]:
+        if incs is None or decs is None:
+            raise ValueError("Inclination (incs) and declination (decs) must be provided for magnetic data.")
+            
+        # Explicitly cast to float to perfectly satisfy Pylance
+        valid_incs: float = float(incs)
+        valid_decs: float = float(decs)
+            
+        G_trans, _, _ = build_magnetic_jacobian_with_profiling(
+            N, easting, northing, new_upwards, prisms_layer, valid_incs, valid_decs
+        )
+    elif data_type in ["gravity", "grav"]:
+        G_trans, _, _ = build_gravity_jacobian_with_profiling(
+            N, easting, northing, new_upwards, prisms_layer
+        )
+    else:
+        raise ValueError("Invalid data_type for transformation.")
+
+    # Apply the transformation: d_trans = G_trans * p_est
+    d_transformed = G_trans @ p_est
+    
+    t1 = time.perf_counter()
+    _, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    
+    trans_time = t1 - t0
+    peak_ram_mb = peak_mem / (1024 ** 2)
+    
+    print(f"Transformation Time: {trans_time:.2f} s")
+    print(f"Transformation Peak Memory: {peak_ram_mb:.2f} MB")
+    
+    return d_transformed, new_upwards
 
 
 def find_all_connections(grid):

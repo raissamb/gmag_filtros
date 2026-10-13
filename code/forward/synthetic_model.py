@@ -95,17 +95,24 @@ tfa_noisy = ut.add_gaussian_noise(tfa, noise_percentage, seed)
 
 # Save data as file
 easting, northing, upwards = coordinates
-header_text = "X,Y,Z,gz_exact,gz_noisy,tfa_exact,tfa_noisy"
-data = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), 
-                        gz.ravel(), gz_noisy.ravel(), 
-                        tfa.ravel(), tfa_noisy.ravel(),  
-                        ))
+header_grav = "X,Y,Z,gz"
+header_mag = "X,Y,Z,tfa"
+grav = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), gz_noisy.ravel() ))
+mag = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), tfa_noisy.ravel() ))
 
 
-np.savetxt(DATA_FOLDER / f"{modelname}_data.csv",
-    data,
+np.savetxt(DATA_FOLDER / f"{modelname}_grav.csv",
+    grav,
     delimiter=",",
-    header=header_text,
+    header=header_grav,
+    comments="",  # Prevents NumPy from adding a default '#' character before the header
+    fmt="%.6f",  # Adjust format if needed (e.g., '%d' for integers, '%.6f' for floats)
+)
+
+np.savetxt(DATA_FOLDER / f"{modelname}_mag.csv",
+    mag,
+    delimiter=",",
+    header=header_mag,
     comments="",  # Prevents NumPy from adding a default '#' character before the header
     fmt="%.6f",  # Adjust format if needed (e.g., '%d' for integers, '%.6f' for floats)
 )

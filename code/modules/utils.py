@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 from typing import Optional, Union, Any, Literal
-
+import json
 
 # Functions
 
@@ -113,6 +113,87 @@ def plot_field_contourf(xcoords: np.ndarray,
         plt.close(fig)
 
 
+
+def plot_transformation_results(
+    xcoord: np.ndarray, 
+    ycoord: np.ndarray,
+    original: np.ndarray, 
+    transformed: np.ndarray,
+    transformation_name: str, 
+    figname: str, 
+    transformation_label: str,
+    show: bool = False
+):
+    """
+    Plots Original vs. Transformed data and their difference with consistent scaling.
+
+    Parameters
+    ----------
+    xcoord, ycoord : np.ndarray
+        Coordinates for the grid (usually meshgrid or 2D reshaped array).
+    original : np.ndarray
+        Original observed data grid.
+    transformed : np.ndarray
+        Transformed (e.g., Upward Continued) data grid.
+    modelname : str
+        Name of the model for the overarching title.
+    figname : str or Path
+        Path to save the figure.
+    transformation_label : str
+        Label for the transformation plot (e.g., 'Upward Cont. (500m)').
+    show : bool
+        Whether to display the plot window.
+    """
+
+    # 1. Calculate Difference
+    difference = original - transformed
+
+    # 2. Determine Global Scales for Original/Transformed
+    # Sharing the scale accurately visualizes signal attenuation or amplification
+    global_min = min(np.min(original), np.min(transformed))
+    global_max = max(np.max(original), np.max(transformed))
+    levels = np.linspace(global_min, global_max, 21)
+
+    # 3. Setup Figure (1 row, 3 columns)
+    fig, (ax1, ax2, ax3) = plt.subplots(
+        1, 3, figsize=(16, 5), constrained_layout=True)
+
+    # --- Plot 1: Original Data ---
+    c1 = ax1.contourf(xcoord, ycoord, original, levels=levels, cmap='jet',
+                      vmin=global_min, vmax=global_max)
+    fig.colorbar(c1, ax=ax1, label='nT', orientation='vertical')
+    ax1.set_title('Original Data')
+    ax1.set_xlabel('Easting (m)')
+    ax1.set_ylabel('Northing (m)')
+
+    # --- Plot 2: Transformed Data ---
+    c2 = ax2.contourf(xcoord, ycoord, transformed, levels=levels, cmap='jet',
+                      vmin=global_min, vmax=global_max)
+    fig.colorbar(c2, ax=ax2, label='nT', orientation='vertical')
+    ax2.set_title(f'Transformed\n{transformation_label}')
+    ax2.set_xlabel('Easting (m)')
+
+    # --- Plot 3: Difference (Original - Transformed) ---
+    # Diverging colormap centered on 0
+    diff_abs_max = np.max(np.abs(difference))
+    c3 = ax3.contourf(xcoord, ycoord, difference, cmap='seismic',
+                      levels=21, vmin=-diff_abs_max, vmax=diff_abs_max)
+    fig.colorbar(c3, ax=ax3, label='Difference (nT)', orientation='vertical')
+    ax3.set_title('Difference (Original - Transformed)')
+    ax3.set_xlabel('Easting (m)')
+
+    # Main Title
+    fig.suptitle(f'Transformation Results: {transformation_name}', fontsize=16, fontweight='bold')
+
+    # Save
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"Transformation plot saved to: {figname}")
+
+    # Memory Management
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
 
 
 def compare_eq_layer_results(
@@ -311,3 +392,29 @@ def plot_physical_property_distribution_matrix(easting: np.ndarray,
     
     fig.savefig(figname, dpi=300, bbox_inches="tight")
     plt.close(fig)
+
+
+def find_read_json_file(main_dir: Path, pattern: str) -> dict:
+    """
+    Searches for a JSON file matching the pattern and returns its contents as a dictionary.
+    Raises FileNotFoundError or ValueError if it fails, ensuring it never returns None.
+    """
+    matching_files = list(main_dir.rglob(pattern))
+
+    if not matching_files:
+        raise FileNotFoundError(f"No matching JSON file found for pattern: '{pattern}' in {main_dir}")
+    
+    # Take the first matching file found
+    target_file = matching_files[0]
+    print(f"Found file: {target_file}")
+    
+    # Open and read the JSON content
+    try:
+        data = json.loads(target_file.read_text(encoding='utf-8'))
+        print("Successfully read JSON data")
+        return data
+        
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Error: The file {target_file} is not a valid JSON document.\n{e}")
+    except Exception as e:
+        raise RuntimeError(f"An unexpected error occurred while reading {target_file}: {e}")
