@@ -124,7 +124,7 @@ RTR, _, _ = kn.build_rtr_with_profiling(df_sub, N, kn)
 # ---------------------------------------------------------
 print("\n--- Assembling Equator Jacobian (Inc=10) ---")
 # Build G using the Equator magnetic parameters
-G_eq, _, _ = kn.build_jacobian_with_profiling(N, easting, northing, upwards, prisms_layer, inc2, dec)
+G_eq, _, _ = kn.build_magnetic_jacobian_with_profiling(N, easting, northing, upwards, prisms_layer, inc2, dec)
 
 print("\n--- Running L-Curve Inversion ---")
 reg_min = 1e-6
@@ -143,7 +143,7 @@ print(f"Number of negative magnetization values estimated: {negative_count} out 
 # ---------------------------------------------------------
 print("\n--- Assembling Pole Jacobian for RTP (Inc=90) ---")
 # Build a new G using the Pole magnetic parameters
-G_pole, _, _ = kn.build_jacobian_with_profiling(N, easting, northing, upwards, prisms_layer, inc1, dec)
+G_pole, _, _ = kn.build_magnetic_jacobian_with_profiling(N, easting, northing, upwards, prisms_layer, inc1, dec)
 
 # Project the estimated magnetization to the pole
 rtp_predicted = G_pole @ p_est
