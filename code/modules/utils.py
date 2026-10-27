@@ -418,3 +418,42 @@ def find_read_json_file(main_dir: Path, pattern: str) -> dict:
         raise ValueError(f"Error: The file {target_file} is not a valid JSON document.\n{e}")
     except Exception as e:
         raise RuntimeError(f"An unexpected error occurred while reading {target_file}: {e}")
+
+
+def create_metadata_file(
+    savepath: Path,
+    data_type: str,
+    filename: str,
+    easting_col: str = "X",
+    northing_col: str = "Y",
+    upwards_col: str = "Z",
+    field: str = "tfa",
+    incf: float = 90.0,
+    decf: float = 0.0,
+    incs: float = 90.0,
+    decs: float = 0.0,
+    z_top: float = -300.0,
+    z_bottom: float = -800.0,
+) -> None:
+    """
+    Creates and saves the metadata configuration for the inversion pipeline.
+    """
+    metadata = {
+        "data_type": data_type,
+        "filename": filename,
+        "easting_col": easting_col,
+        "northing_col": northing_col,
+        "upwards_col": upwards_col,
+        "field": field,
+        "incf": incf,
+        "decf": decf,
+        "incs": incs,
+        "decs": decs,
+        "z_top": z_top,
+        "z_bottom": z_bottom,
+    }
+    
+    filepath = savepath / "inversion_config.json"
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=4)
+    print(f"Metadata successfully saved to: {filepath}")

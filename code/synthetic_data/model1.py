@@ -33,6 +33,10 @@ import modules.utils as ut
 
 
 # ==================== Start =============
+modelname = "model1"
+datapath = DATA_FOLDER / modelname
+datapath.mkdir(exist_ok=True, parents=True)
+
 # Observation Grid coordinates
 # Verde and Harmonica use ENU direction: X axis is Easting,  Y axis is Northing and Z axis is Upwards, positive up.
 # extra_coords: observation height
@@ -56,7 +60,6 @@ coordinates = vd.grid_coordinates(
 # Define Prism properties
 # prism dimensions: west, east, south, north, bottom, top in Cartesian 
 # coordinates and in meters 
-modelname = "model1"
 prism_dimensions = (2000, 3000, 2000, 3000, -10000, -1000)
 density = 2670
 
@@ -101,7 +104,7 @@ grav = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), gz_n
 mag = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), tfa_noisy.ravel() ))
 
 
-np.savetxt(DATA_FOLDER / f"{modelname}_grav.csv",
+np.savetxt(datapath / f"{modelname}_grav.csv",
     grav,
     delimiter=",",
     header=header_grav,
@@ -109,7 +112,7 @@ np.savetxt(DATA_FOLDER / f"{modelname}_grav.csv",
     fmt="%.6f",  # Adjust format if needed (e.g., '%d' for integers, '%.6f' for floats)
 )
 
-np.savetxt(DATA_FOLDER / f"{modelname}_mag.csv",
+np.savetxt(datapath / f"{modelname}_mag.csv",
     mag,
     delimiter=",",
     header=header_mag,
@@ -141,3 +144,22 @@ ut.plot_field_contourf(easting,
                         "mGal",
                         Path(pathname / f"{modelname}_gz_noisy.png"),
                         show=False) # Explicitly name the 'show' parameter
+
+
+# Create metadata file
+
+ut.create_metadata_file(
+    savepath = datapath,
+    data_type = "magnetic",
+    filename =  "mag_inversion_config.json",
+    easting_col = "X",
+    northing_col = "Y",
+    upwards_col = "Z",
+    field = "tfa",
+    incf = 90.0,
+    decf = 0.0,
+    incs  = 90.0,
+    decs = 0.0,
+    z_top = -300.0,
+    z_bottom = -800.0,
+    )
