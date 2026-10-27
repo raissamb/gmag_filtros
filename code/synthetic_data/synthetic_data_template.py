@@ -33,7 +33,7 @@ import modules.utils as ut
 
 
 # ==================== Start =============
-modelname = "model1"
+modelname = "model2"
 datapath = DATA_FOLDER / modelname
 datapath.mkdir(exist_ok=True, parents=True)
 
@@ -61,11 +61,11 @@ coordinates = vd.grid_coordinates(
 # prism dimensions: west, east, south, north, bottom, top in Cartesian 
 # coordinates and in meters 
 prism_dimensions = (2000, 3000, 2000, 3000, -10000, -1000)
-density = 2670
+density = 2170
 
 # magnetic properties
-inc = 90
-dec = 0
+inc = 45
+dec = 12
 intensity = 3
 cosine_dir = kn.get_direction_cosines_enu(inc, dec)
 mag_vector = kn.get_magnetization_vector_enu(intensity, cosine_dir)
@@ -98,8 +98,7 @@ tfa_noisy = ut.add_gaussian_noise(tfa, noise_percentage, seed)
 
 # Save data as file
 easting, northing, upwards = coordinates
-header_grav = "X,Y,Z,gz"
-header_mag = "X,Y,Z,tfa"
+header= "X,Y,Z,obs"
 grav = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), gz_noisy.ravel() ))
 mag = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), tfa_noisy.ravel() ))
 
@@ -107,7 +106,7 @@ mag = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), tfa_n
 np.savetxt(datapath / f"{modelname}_grav.csv",
     grav,
     delimiter=",",
-    header=header_grav,
+    header=header,
     comments="",  # Prevents NumPy from adding a default '#' character before the header
     fmt="%.6f",  # Adjust format if needed (e.g., '%d' for integers, '%.6f' for floats)
 )
@@ -115,14 +114,14 @@ np.savetxt(datapath / f"{modelname}_grav.csv",
 np.savetxt(datapath / f"{modelname}_mag.csv",
     mag,
     delimiter=",",
-    header=header_mag,
+    header=header,
     comments="",  # Prevents NumPy from adding a default '#' character before the header
     fmt="%.6f",  # Adjust format if needed (e.g., '%d' for integers, '%.6f' for floats)
 )
 
 
 # Plot data
-pathname = Path(OUTPUT_FOLDER/ modelname)
+pathname = Path(OUTPUT_FOLDER/ f"results_{modelname}")
 pathname.mkdir(exist_ok=True, parents=True)
 
 ut.plot_field_contourf(easting, 
@@ -144,22 +143,3 @@ ut.plot_field_contourf(easting,
                         "mGal",
                         Path(pathname / f"{modelname}_gz_noisy.png"),
                         show=False) # Explicitly name the 'show' parameter
-
-
-# Create metadata file
-
-ut.create_metadata_file(
-    savepath = datapath,
-    data_type = "magnetic",
-    filename =  "mag_inversion_config.json",
-    easting_col = "X",
-    northing_col = "Y",
-    upwards_col = "Z",
-    field = "tfa",
-    incf = 90.0,
-    decf = 0.0,
-    incs  = 90.0,
-    decs = 0.0,
-    z_top = -300.0,
-    z_bottom = -800.0,
-    )
