@@ -1,0 +1,36 @@
+{
+    "project_settings": {
+        "data_type": "magnetic",
+        "filename": "model2_mag.csv",
+        "output_folder": "results_model2"
+    },
+    "data_columns": {
+        "easting_col": "X",
+        "northing_col": "Y",
+        "upwards_col": "Z",
+        "field": "obs"
+    },
+    "inversion_parameters": {
+        "z_top": -300,
+        "z_bottom": -800,
+        "incf": 45,
+        "decf": 12,
+        "incs": 45,
+        "decs": 12
+    },
+    "transformations": {
+        "upward_continuation": {
+            "execute": true,
+            "dz": 500
+        },
+        "downward_continuation": {
+            "execute": true,
+            "dz": -150
+        },
+        "reduction_to_pole": {
+            "execute": true,
+            "inc_new": 90,
+            "dec_new": 0
+        }
+    }
+}

@@ -1,15 +1,36 @@
 {
-    "data_type": "magnetic",
-    "filename": "model1/model1_mag.csv", 
-    "easting_col": "X",
-    "northing_col": "Y",
-    "upwards_col": "Z",
-    "field": "tfa",
-    "incf": 90,
-    "decf": 0,
-    "incs": 90,
-    "decs": 0,
-    "z_top": -300,
-    "z_bottom":-800,
-    "output_folder": "results_model1"
+    "project_settings": {
+        "data_type": "magnetic",
+        "filename": "model1_mag.csv",
+        "output_folder": "results_model1"
+    },
+    "data_columns": {
+        "easting_col": "X",
+        "northing_col": "Y",
+        "upwards_col": "Z",
+        "field": "obs"
+    },
+    "inversion_parameters": {
+        "z_top": -300,
+        "z_bottom": -800,
+        "incf": 90,
+        "decf": 0,
+        "incs": 90,
+        "decs": 0
+    },
+    "transformations": {
+        "upward_continuation": {
+            "execute": true,
+            "dz": 500
+        },
+        "downward_continuation": {
+            "execute": true,
+            "dz": -150
+        },
+        "reduction_to_pole": {
+            "execute": true,
+            "inc_new": 90,
+            "dec_new": 0
+        }
+    }
 }
