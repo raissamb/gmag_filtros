@@ -25,6 +25,8 @@ def main():
     dataset_name = "model2"  # WRITE HERE THE FOLDER NAME OF WHERE DATASET IS! 
                             # THEN RUN TO EXECUTE EQ. LAYER BUILDING AND FIELD TRANSFORMATIONS
     
+    
+    print("==== Start ====\n")
     # Read the single unified configuration file
     config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
     
@@ -49,6 +51,8 @@ def main():
 
     dirpath = BASE_FOLDER / output_path
     dirpath.mkdir(exist_ok=True, parents=True)
+
+    print(f"Data type: {data_type}")
 
     # Note: Keep your dataset_name folder path if that's how your data is structured
     df_obs = pd.read_csv(DATA_FOLDER / dataset_name / filename)
@@ -109,6 +113,8 @@ def main():
     # ---------------------------------------------------------
     # 3. Field Transformations (In-Memory)
     # ---------------------------------------------------------
+    print(" ")
+    print("--- Field Transformations ----- \n")
     transformations_dict = config.get("transformations", {})
 
     for trans_name, params in transformations_dict.items():

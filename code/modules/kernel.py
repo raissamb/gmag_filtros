@@ -378,7 +378,7 @@ def build_magnetic_jacobian_with_profiling(N: int,
     assembly_time = t1 - t0
     peak_ram_mb = peak_mem / (1024 ** 2)
     
-    print(f"Jacobian G shape: {G.shape}")
+    print(f"Magnetic Jacobian G shape: {G.shape}")
     print(f"G Assembly Time: {assembly_time:.2f} s")
     print(f"Peak Memory Allocated: {peak_ram_mb:.2f} MB")
     

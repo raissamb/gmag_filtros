@@ -1,7 +1,7 @@
 {
     "project_settings": {
-        "data_type": "magnetic",
-        "filename": "model1_mag.csv",
+        "data_type": "gravity",
+        "filename": "model1_grav.csv",
         "output_folder": "results_model1"
     },
     "data_columns": {

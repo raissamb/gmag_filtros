@@ -73,3 +73,84 @@ pip install -r requirements.txt
 ```
 
 Pronto, o ambiente já está configurado, pode começar a trabalhar :)
+
+## Como usar
+
+Cada dataset deve ser salvo dentro da pasta project/data/"dataset_name". Nessa pasta deve conter um arquivo com os dados grav e outro com os dados mag (X,Y,Z,Obs). O arquivo metadata_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo. Copie esse arquivo na pasta do dataset e coloque as informações necessárias.
+
+```json
+{
+    "project_settings": {
+        "data_type": "magnetic",
+        "filename": "model1_mag.csv",
+        "output_folder": "results_model1"
+    },
+    "data_columns": {
+        "easting_col": "X",
+        "northing_col": "Y",
+        "upwards_col": "Z",
+        "field": "obs"
+    },
+    "inversion_parameters": {
+        "z_top": -300,
+        "z_bottom": -800,
+        "incf": 90,
+        "decf": 0,
+        "incs": 90,
+        "decs": 0
+    },
+    "transformations": {
+        "upward_continuation": {
+            "execute": true,
+            "dz": 500
+        },
+        "downward_continuation": {
+            "execute": true,
+            "dz": -150
+        },
+        "reduction_to_pole": {
+            "execute": true,
+            "inc_new": 90,
+            "dec_new": 0
+        }
+    }
+}
+```
+
+Para executar a construção da Camada Equivalente Clássica (um prisma embaixo de cada ponto de observação), vá na pasta project/code/equivalent_layer/ e encontre o arquivo run_ceq.py, esse é o arquivo que executa esta tarefa. Abre o arquivo e procure a linha onde está definido **dataset_name** e coloque o nome da sua pasta dataset, como mostrado no exemplo abaixo, salve e execute o script, os resultados estarão em project/output/results_dataset:
+
+```python
+import sys
+import json
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
+# Define paths
+CURRENT_FILE_PATH = Path(__file__).resolve()
+CODE_ROOT = CURRENT_FILE_PATH.parent.parent
+
+if str(CODE_ROOT) not in sys.path:
+    sys.path.insert(0, str(CODE_ROOT))
+
+PROJECT_HOME = CODE_ROOT.parent
+DATA_FOLDER = PROJECT_HOME / "data"
+BASE_FOLDER = PROJECT_HOME / "output" 
+
+import modules.utils as ut
+import modules.kernel as kn
+
+def main():
+    # ---------------------------------------------------------
+    # 1. Load Data & Configs
+    # ---------------------------------------------------------
+    dataset_name = "model2"  # WRITE HERE THE FOLDER NAME OF WHERE DATASET IS! 
+                            # THEN RUN TO EXECUTE EQ. LAYER BUILDING AND FIELD TRANSFORMATIONS
+    
+    
+    print("==== Start ====\n")
+    # Read the single unified configuration file
+    config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
+```
+
+Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards, positivo para cima.
