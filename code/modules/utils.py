@@ -120,7 +120,7 @@ def plot_transformation_results(
     original: np.ndarray, 
     transformed: np.ndarray,
     transformation_name: str, 
-    figname: str, 
+    figname: str | Path, 
     transformation_label: str,
     show: bool = False
 ):
