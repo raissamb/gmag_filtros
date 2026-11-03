@@ -76,14 +76,15 @@ Pronto, o ambiente já está configurado, pode começar a trabalhar :)
 
 ## Como usar
 
-Cada dataset deve ser salvo dentro da pasta project/data/"dataset_name". Nessa pasta deve conter um arquivo com os dados grav e outro com os dados mag (X,Y,Z,Obs). O arquivo metadata_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo. Copie esse arquivo na pasta do dataset e coloque as informações necessárias.
+Cada dataset deve ser salvo dentro da pasta project/data/**dataset_name**. Nessa pasta deve conter um arquivo com os dados grav e outro com os dados mag. Cada arquivo de dados observados deve seguir a ordem: X,Y,Z,Obs, onde X é Easting, Y é Northing, Z é upwards e Obs é o dado observado. Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards em metros, positivo para cima.
+
+O arquivo metadata_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo. Copie esse arquivo na pasta do dataset e o preencha com as informações necessárias.
 
 ```json
 {
     "project_settings": {
-        "data_type": "magnetic",
+        "data_type": "magnetic", 
         "filename": "model1_mag.csv",
-        "output_folder": "results_model1"
     },
     "data_columns": {
         "easting_col": "X",
@@ -117,40 +118,19 @@ Cada dataset deve ser salvo dentro da pasta project/data/"dataset_name". Nessa p
 }
 ```
 
-Para executar a construção da Camada Equivalente Clássica (um prisma embaixo de cada ponto de observação), vá na pasta project/code/equivalent_layer/ e encontre o arquivo run_ceq.py, esse é o arquivo que executa esta tarefa. Abre o arquivo e procure a linha onde está definido **dataset_name** e coloque o nome da sua pasta dataset, como mostrado no exemplo abaixo, salve e execute o script, os resultados estarão em project/output/results_dataset:
+Para executar a construção da Camada Equivalente Clássica (um prisma embaixo de cada ponto de observação), vá na pasta project/code/equivalent_layer/ e encontre o arquivo run_ceq.py, esse é o arquivo que executa esta tarefa.
+
+Abre o arquivo e procure a linha onde está definido **dataset_name** (LÁ NO FINAL DO ARQUIVO run_ceq.py) e coloque o nome da sua pasta dataset, como mostrado no exemplo abaixo e execute o script, os resultados das transformações estarão em project/data/**dataset_name**/output/:
 
 ```python
-import sys
-import json
-import numpy as np
-import pandas as pd
-from pathlib import Path
+if __name__ == "__main__":
 
-# Define paths
-CURRENT_FILE_PATH = Path(__file__).resolve()
-CODE_ROOT = CURRENT_FILE_PATH.parent.parent
+    # "dataset_name": WRITE HERE THE FOLDER NAME OF WHERE DATASET IS! 
+    # THEN RUN THIS FILE TO EXECUTE THE EQ. LAYER BUILDING AND FIELD TRANSFORMATIONS    
+    dataset_name = "model2"  
 
-if str(CODE_ROOT) not in sys.path:
-    sys.path.insert(0, str(CODE_ROOT))
-
-PROJECT_HOME = CODE_ROOT.parent
-DATA_FOLDER = PROJECT_HOME / "data"
-BASE_FOLDER = PROJECT_HOME / "output" 
-
-import modules.utils as ut
-import modules.kernel as kn
-
-def main():
-    # ---------------------------------------------------------
-    # 1. Load Data & Configs
-    # ---------------------------------------------------------
-    dataset_name = "model2"  # WRITE HERE THE FOLDER NAME OF WHERE DATASET IS! 
-                            # THEN RUN TO EXECUTE EQ. LAYER BUILDING AND FIELD TRANSFORMATIONS
-    
-    
-    print("==== Start ====\n")
-    # Read the single unified configuration file
-    config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
+    # This block executes the code
+    main(dataset_name)
 ```
 
 Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards, positivo para cima.
