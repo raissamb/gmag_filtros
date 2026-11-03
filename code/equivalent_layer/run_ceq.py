@@ -13,19 +13,14 @@ if str(CODE_ROOT) not in sys.path:
 
 PROJECT_HOME = CODE_ROOT.parent
 DATA_FOLDER = PROJECT_HOME / "data"
-BASE_FOLDER = PROJECT_HOME / "output" 
 
 import modules.utils as ut
 import modules.kernel as kn
 
-def main():
+def main(dataset_name:str):
     # ---------------------------------------------------------
     # 1. Load Data & Configs
     # ---------------------------------------------------------
-    dataset_name = "model2"  # WRITE HERE THE FOLDER NAME OF WHERE DATASET IS! 
-                            # THEN RUN TO EXECUTE EQ. LAYER BUILDING AND FIELD TRANSFORMATIONS
-    
-    
     print("==== Start ====\n")
     # Read the single unified configuration file
     config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
@@ -37,7 +32,6 @@ def main():
     
     data_type = proj["data_type"]
     filename = proj["filename"]
-    output_path = proj["output_folder"]
     
     easting_col = cols["easting_col"]
     northing_col = cols["northing_col"]
@@ -49,7 +43,7 @@ def main():
     incs = inv.get("incs", 90.0)
     decs = inv.get("decs", 0.0)
 
-    dirpath = BASE_FOLDER / output_path
+    dirpath = DATA_FOLDER / dataset_name / "output"
     dirpath.mkdir(exist_ok=True, parents=True)
 
     print(f"Data type: {data_type}")
@@ -138,12 +132,50 @@ def main():
             
             output_file = dirpath / f"{data_type}_{trans_name}_{dz}m.csv"
             df_export.to_csv(output_file, index=False)
-            
+
             ut.plot_transformation_results(
                 easting.reshape(grid_shape), northing.reshape(grid_shape),
                 d_obs.reshape(grid_shape), d_transformed.reshape(grid_shape),
                 f"{trans_name}", dirpath / f"{data_type}_{trans_name}.png", "nT", show=False
             )
+
+        # Add here the call for other transformations
+        elif trans_name == "reduction_to_pole":
+            if data_type not in ["magnetic", "mag"]:
+                print("Skipping RTP: Data is not magnetic.")
+                continue
+                
+            inc_new = params.get("inc_new", 90.0)
+            dec_new = params.get("dec_new", 0.0)
+            print(f"\nRunning {trans_name} (Inc={inc_new}, Dec={dec_new})...")
             
+            d_transformed = kn.compute_rtp_transformation(
+                N=N, easting=easting, northing=northing, upwards=upwards, 
+                prisms_layer=prisms_layer, p_est=p_tilde, data_type=data_type,
+                inc_new=inc_new, dec_new=dec_new
+            )
+            
+            # Export
+            df_export = df_obs.copy()
+            df_export[f"{field}_rtp"] = d_transformed
+            
+            output_file = dirpath / f"{data_type}_{trans_name}.csv"
+            df_export.to_csv(output_file, index=False)
+
+            # Plot
+            ut.plot_transformation_results(
+                easting.reshape(grid_shape), northing.reshape(grid_shape),
+                d_obs.reshape(grid_shape), d_transformed.reshape(grid_shape),
+                "Reduction to Pole", dirpath / f"{data_type}_{trans_name}.png", "nT", show=False
+            )
+          
+
+
 if __name__ == "__main__":
-    main()
+
+    # "dataset_name": WRITE HERE THE FOLDER NAME OF WHERE DATASET IS! 
+    # THEN RUN THIS FILE TO EXECUTE THE EQ. LAYER BUILDING AND FIELD TRANSFORMATIONS    
+    dataset_name = "model2"  
+
+    # This block executes the code
+    main(dataset_name)

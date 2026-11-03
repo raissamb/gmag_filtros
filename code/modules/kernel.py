@@ -429,64 +429,6 @@ def build_gravity_jacobian_with_profiling(N: int,
     return G, assembly_time, peak_ram_mb
 
 
-def compute_continuation_transformation(
-    N: int, 
-    easting: np.ndarray, 
-    northing: np.ndarray, 
-    upwards: np.ndarray, 
-    prisms_layer: np.ndarray, 
-    p_est: np.ndarray,
-    data_type: str,
-    dz: float, 
-    incs: Optional[float] = None, 
-    decs: Optional[float] = None
-) -> tuple:
-    """
-    Computes the upward or downward continuation of the field using the equivalent layer.
-    """
-    tracemalloc.start()
-    t0 = time.perf_counter()
-
-    # Calculate the new observation heights
-    new_upwards = upwards + dz
-    
-    print(f"Building Transformation Jacobian for dz={dz}m continuation...")
-    
-    # Reuse your existing Jacobian builders for the new heights
-    if data_type in ["magnetic", "mag"]:
-        if incs is None or decs is None:
-            raise ValueError("Inclination (incs) and declination (decs) must be provided for magnetic data.")
-            
-        # Explicitly cast to float to perfectly satisfy Pylance
-        valid_incs: float = float(incs)
-        valid_decs: float = float(decs)
-            
-        G_trans, _, _ = build_magnetic_jacobian_with_profiling(
-            N, easting, northing, new_upwards, prisms_layer, valid_incs, valid_decs
-        )
-    elif data_type in ["gravity", "grav"]:
-        G_trans, _, _ = build_gravity_jacobian_with_profiling(
-            N, easting, northing, new_upwards, prisms_layer
-        )
-    else:
-        raise ValueError("Invalid data_type for transformation.")
-
-    # Apply the transformation: d_trans = G_trans * p_est
-    d_transformed = G_trans @ p_est
-    
-    t1 = time.perf_counter()
-    _, peak_mem = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-    
-    trans_time = t1 - t0
-    peak_ram_mb = peak_mem / (1024 ** 2)
-    
-    print(f"Transformation Time: {trans_time:.2f} s")
-    print(f"Transformation Peak Memory: {peak_ram_mb:.2f} MB")
-    
-    return d_transformed, new_upwards
-
-
 def find_all_connections(grid):
     """
     Loops through a grid and finds all unique, canonical neighbor pairs.
@@ -793,3 +735,108 @@ def get_magnetization_vector_enu(intensity: float, cosine_dir: np.ndarray):
     magnetization = (mag_e, mag_n, mag_u)
 
     return magnetization
+
+
+
+### TRANSFORMATIONS HERE
+
+def compute_continuation_transformation(
+    N: int, 
+    easting: np.ndarray, 
+    northing: np.ndarray, 
+    upwards: np.ndarray, 
+    prisms_layer: np.ndarray, 
+    p_est: np.ndarray,
+    data_type: str,
+    dz: float, 
+    incs: Optional[float] = None, 
+    decs: Optional[float] = None
+) -> tuple:
+    """
+    Computes the upward or downward continuation of the field using the equivalent layer.
+    """
+    tracemalloc.start()
+    t0 = time.perf_counter()
+
+    # Calculate the new observation heights
+    new_upwards = upwards + dz
+    
+    print(f"Building Transformation Jacobian for dz={dz}m continuation...")
+    
+    # Reuse your existing Jacobian builders for the new heights
+    if data_type in ["magnetic", "mag"]:
+        if incs is None or decs is None:
+            raise ValueError("Inclination (incs) and declination (decs) must be provided for magnetic data.")
+            
+        # Explicitly cast to float to perfectly satisfy Pylance
+        valid_incs: float = float(incs)
+        valid_decs: float = float(decs)
+            
+        G_trans, _, _ = build_magnetic_jacobian_with_profiling(
+            N, easting, northing, new_upwards, prisms_layer, valid_incs, valid_decs
+        )
+    elif data_type in ["gravity", "grav"]:
+        G_trans, _, _ = build_gravity_jacobian_with_profiling(
+            N, easting, northing, new_upwards, prisms_layer
+        )
+    else:
+        raise ValueError("Invalid data_type for transformation.")
+
+    # Apply the transformation: d_trans = G_trans * p_est
+    d_transformed = G_trans @ p_est
+    
+    t1 = time.perf_counter()
+    _, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    
+    trans_time = t1 - t0
+    peak_ram_mb = peak_mem / (1024 ** 2)
+    
+    print(f"Transformation Time: {trans_time:.2f} s")
+    print(f"Transformation Peak Memory: {peak_ram_mb:.2f} MB")
+    
+    return d_transformed, new_upwards
+
+
+def compute_rtp_transformation(
+    N: int, 
+    easting: np.ndarray, 
+    northing: np.ndarray, 
+    upwards: np.ndarray, 
+    prisms_layer: np.ndarray, 
+    p_est: np.ndarray,
+    data_type: str,
+    inc_new: float, 
+    dec_new: float
+) -> np.ndarray:
+    """
+    Computes the Reduction to the Pole (RTP) or arbitrary directional transformation 
+    using the equivalent layer by recalculating the Jacobian with new angles.
+    """
+    if data_type not in ["magnetic", "mag"]:
+        raise ValueError("Reduction to the Pole is only applicable to magnetic data.")
+        
+    tracemalloc.start()
+    t0 = time.perf_counter()
+
+    print(f"Building Transformation Jacobian for RTP (Inc={inc_new}, Dec={dec_new})...")
+    
+    # Calculate the Jacobian using the NEW angles, but at the ORIGINAL observation heights
+    G_trans, _, _ = build_magnetic_jacobian_with_profiling(
+        N, easting, northing, upwards, prisms_layer, inc_new, dec_new
+    )
+
+    # Apply the transformation
+    d_transformed = G_trans @ p_est
+    
+    t1 = time.perf_counter()
+    _, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    
+    trans_time = t1 - t0
+    peak_ram_mb = peak_mem / (1024 ** 2)
+    
+    print(f"RTP Transformation Time: {trans_time:.2f} s")
+    print(f"RTP Transformation Peak Memory: {peak_ram_mb:.2f} MB")
+    
+    return d_transformed
