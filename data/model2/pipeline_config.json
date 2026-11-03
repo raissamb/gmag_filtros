@@ -1,8 +1,7 @@
 {
     "project_settings": {
         "data_type": "magnetic",
-        "filename": "model2_mag.csv",
-        "output_folder": "results_model2"
+        "filename": "model2_mag.csv"
     },
     "data_columns": {
         "easting_col": "X",
