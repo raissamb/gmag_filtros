@@ -16,9 +16,9 @@ if str(CODE_ROOT) not in sys.path:
     sys.path.insert(0, str(CODE_ROOT))
 
 PROJECT_HOME = CODE_ROOT.parent
-DATA_FOLDER = PROJECT_HOME / "data"
+#DATA_FOLDER = PROJECT_HOME / "data"
 OUTPUT_FOLDER = PROJECT_HOME / "output" / "mag_negative"
-OUTPUT_FOLDER.mkdir()
+OUTPUT_FOLDER.mkdir(exist_ok=True, parents=True)
 
 # import custom modules
 #import modules.constants as mc
