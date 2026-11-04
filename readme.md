@@ -124,13 +124,17 @@ Abre o arquivo e procure a linha onde está definido **dataset_name** (LÁ NO FI
 
 ```python
 if __name__ == "__main__":
-
-    # "dataset_name": WRITE HERE THE FOLDER NAME OF WHERE DATASET IS! 
-    # THEN RUN THIS FILE TO EXECUTE THE EQ. LAYER BUILDING AND FIELD TRANSFORMATIONS    
-    dataset_name = "model2"  
-
-    # This block executes the code
-    main(dataset_name)
+    # WRITE HERE THE FOLDER NAME OF WHERE THE DATASET IS! 
+    # THEN RUN THIS FILE TO EXECUTE THE PIPELINE
+    
+    target_dataset = "model1"  
+    main(target_dataset)
 ```
 
 Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards, positivo para cima.
+
+## A fazer
+
+- Implementar as transformações: Derivadas, HGM, Tilt, ASA, Deconvolução de Euler e Razão de Poisson
+
+- Para o caso da RTP, adicionar o vinculo de positividade para garantir magnetização estimada positiva, isso necessita mudar a forma de resolver o sistema já que Cholesky não será possível nessa situação
