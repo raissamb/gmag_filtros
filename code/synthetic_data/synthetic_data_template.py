@@ -33,7 +33,7 @@ import modules.utils as ut
 
 
 # ==================== Start =============
-modelname = "model2"
+modelname = "model1"
 datapath = DATA_FOLDER / modelname
 datapath.mkdir(exist_ok=True, parents=True)
 
@@ -64,8 +64,8 @@ prism_dimensions = (2000, 3000, 2000, 3000, -10000, -1000)
 density = 2170
 
 # magnetic properties
-inc = 45
-dec = 12
+inc = 90 # 45
+dec = 0 #12
 intensity = 3
 cosine_dir = kn.get_direction_cosines_enu(inc, dec)
 mag_vector = kn.get_magnetization_vector_enu(intensity, cosine_dir)
@@ -121,9 +121,6 @@ np.savetxt(datapath / f"{modelname}_mag.csv",
 
 
 # Plot data
-pathname = Path(OUTPUT_FOLDER/ f"results_{modelname}")
-pathname.mkdir(exist_ok=True, parents=True)
-
 ut.plot_field_contourf(easting, 
                         northing,
                         tfa_noisy,
@@ -131,7 +128,7 @@ ut.plot_field_contourf(easting,
                         "Easting (m)",
                         "Northing (m)",
                         "nT",
-                        Path(pathname / f"{modelname}_tfa_noisy.png"),
+                        Path(datapath / f"{modelname}_tfa_noisy.png"),
                         show=False) # Explicitly name the 'show' parameter
 
 ut.plot_field_contourf(easting, 
@@ -141,5 +138,15 @@ ut.plot_field_contourf(easting,
                         "Easting (m)",
                         "Northing (m)",
                         "mGal",
-                        Path(pathname / f"{modelname}_gz_noisy.png"),
+                        Path(datapath / f"{modelname}_gz_noisy.png"),
                         show=False) # Explicitly name the 'show' parameter
+
+
+# Plot the 3D source model showing the entire survey region
+ut.plot_prisms_3d(
+    prism_dimensions, 
+    figname=Path(datapath / f"{modelname}_3d_source_full.png"), 
+    region_bounds=region,
+    z_bounds=(-12000, 0), # Optional: standardizes the depth view
+    show=False
+)

@@ -7,7 +7,7 @@ This module contains utility functions like plotting.
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-from typing import Optional, Union, Any, Literal
+from typing import Optional, Union, Any, Literal, List
 import json
 
 # Functions
@@ -457,3 +457,89 @@ def create_metadata_file(
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=4)
     print(f"Metadata successfully saved to: {filepath}")
+
+
+
+def plot_prisms_3d(
+    prisms: Union[list, tuple, np.ndarray],
+    figname: Union[str, Path],
+    title: str = "Synthetic Source Model",
+    region_bounds: Optional[tuple] = None,
+    z_bounds: Optional[tuple] = None,
+    show: bool = False
+) -> None:
+    """
+    Plots one or multiple 3D rectangular prisms.
+
+    Parameters
+    ----------
+    prisms : list, tuple, or np.ndarray
+        A single prism defined as [west, east, south, north, bottom, top]
+        OR a list of prisms e.g., [[W, E, S, N, B, T], [W, E, S, N, B, T]].
+    figname : str | Path
+        Filename or Path object to save the figure.
+    title : str
+        Plot title.
+    region_bounds : tuple, optional
+        Tuple defining the lateral limits of the plot (West, East, South, North). 
+        If None, the plot focuses tightly around the source.
+    z_bounds : tuple, optional
+        Tuple defining the vertical limits (Bottom, Top).
+        If None, auto-scales to the source.
+    show : bool, optional
+        If True, displays the figure. If False, closes the figure to save memory (default is False).
+    """
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Check if the input is a single prism (1D) or a list of prisms (2D)
+    prisms_array = np.atleast_2d(prisms)
+
+    for p in prisms_array:
+        west, east, south, north, bottom, top = p
+        
+        # Define the 8 vertices of the prism
+        x = [west, east, east, west, west, east, east, west]
+        y = [south, south, north, north, south, south, north, north]
+        z = [bottom, bottom, bottom, bottom, top, top, top, top]
+        
+        # Define the edges that connect the vertices to form a box
+        edges = [
+            [0, 1], [1, 2], [2, 3], [3, 0], # Bottom face
+            [4, 5], [5, 6], [6, 7], [7, 4], # Top face
+            [0, 4], [1, 5], [2, 6], [3, 7]  # Vertical pillars
+        ]
+        
+        # Plot each edge
+        for edge in edges:
+            ax.plot(
+                [x[edge[0]], x[edge[1]]], 
+                [y[edge[0]], y[edge[1]]], 
+                [z[edge[0]], z[edge[1]]], 
+                color='red', linewidth=1.5
+            )
+
+    ax.set_title(title)
+    ax.set_xlabel("Easting (m)")
+    ax.set_ylabel("Northing (m)")
+    ax.set_zlabel("Depth / Upwards (m)")
+    
+    # Apply optional axis limits if provided
+    if region_bounds is not None:
+        ax.set_xlim(region_bounds[0], region_bounds[1])
+        ax.set_ylim(region_bounds[2], region_bounds[3])
+        
+    if z_bounds is not None:
+        ax.set_zlim(z_bounds[0], z_bounds[1])
+    
+    # Adjust viewing angle for better 3D perspective
+    ax.view_init(elev=20, azim=45)
+    
+    # Save and handle display
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"3D Prism plot saved to: {figname}")
+    
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
