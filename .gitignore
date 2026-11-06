@@ -5,6 +5,7 @@
 output/
 refs/
 docs/
+others/
 __pycache__/
 
 # Files
