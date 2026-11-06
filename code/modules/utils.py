@@ -9,11 +9,217 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from typing import Optional, Union, Any, Literal, List
 import json
+import verde as vd
+import harmonica as hm
+import modules.kernel as kn
 
-# Functions
 
-# I/O Functions
+############ I/O Functions
 
+def export_synthetic_data(
+    model_name: str, 
+    coords: tuple, 
+    gz_noisy: np.ndarray, 
+    tfa_noisy: np.ndarray,
+    prisms: List[list], 
+    densities: List[float], 
+    intensities: List[float], 
+    inc: float, 
+    dec: float,
+    DATA_FOLDER: Path,
+    EQ_LAYER_Z_TOP: float,
+    EQ_LAYER_Z_BOTTOM: float,
+):
+    """Saves arrays to CSV files and generates the metadata and true source configs."""
+    datapath = DATA_FOLDER / model_name
+    datapath.mkdir(exist_ok=True, parents=True)
+    
+    easting, northing, upwards = coords
+    header = "X,Y,Z,obs"
+    
+    print(f"Exporting data to {datapath}...")
+    
+    # Gravity export
+    grav_array = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), gz_noisy.ravel()))
+    np.savetxt(datapath / f"{model_name}_grav.csv", grav_array, delimiter=",", header=header, comments="", fmt="%.6f")
+    
+    # Magnetic export
+    mag_array = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), tfa_noisy.ravel()))
+    np.savetxt(datapath / f"{model_name}_mag.csv", mag_array, delimiter=",", header=header, comments="", fmt="%.6f")
+    
+    # Create Pipeline Config
+    create_pipeline_config(
+        savepath=datapath,
+        data_type="magnetic", 
+        filename=f"{model_name}_mag.csv",
+        z_top=EQ_LAYER_Z_TOP,
+        z_bottom=EQ_LAYER_Z_BOTTOM,
+        incf=inc, decf=dec, incs=inc, decs=dec
+    )
+    
+    # Create True Source Config
+    true_source_config = {
+        "prisms": prisms,
+        "densities": densities,
+        "intensities": intensities,
+        "inc": inc,
+        "dec": dec
+    }
+    
+    source_filepath = datapath / "true_source_config.json"
+    with open(source_filepath, "w", encoding="utf-8") as f:
+        json.dump(true_source_config, f, indent=4)
+    print(f"True source config successfully saved to: {source_filepath}")
+        
+    return datapath
+
+
+
+def create_pipeline_config(
+    savepath: Path,
+    data_type: str,
+    filename: str,
+    easting_col: str = "X",
+    northing_col: str = "Y",
+    upwards_col: str = "Z",
+    field: str = "obs",
+    z_top: float = -300.0,
+    z_bottom: float = -800.0,
+    incf: float = 90.0,
+    decf: float = 0.0,
+    incs: float = 90.0,
+    decs: float = 0.0,
+    transformations: dict = None
+) -> None:
+    """
+    Creates and saves the unified pipeline configuration (pipeline_config.json).
+    """
+    if transformations is None:
+        # Default transformations block if none provided
+        transformations = {
+            "upward_continuation": {"execute": False, "dz": 500},
+            "downward_continuation": {"execute": False, "dz": -150},
+            "reduction_to_pole": {"execute": False, "inc_new": 90, "dec_new": 0}
+        }
+
+    config = {
+        "project_settings": {
+            "data_type": data_type,
+            "filename": filename
+        },
+        "data_columns": {
+            "easting_col": easting_col,
+            "northing_col": northing_col,
+            "upwards_col": upwards_col,
+            "field": field
+        },
+        "inversion_parameters": {
+            "z_top": z_top,
+            "z_bottom": z_bottom,
+            "incf": incf,
+            "decf": decf,
+            "incs": incs,
+            "decs": decs
+        },
+        "transformations": transformations
+    }
+    
+    filepath = savepath / "pipeline_config.json"
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=4)
+    print(f"Pipeline config successfully saved to: {filepath}")
+
+
+
+def find_read_json_file(main_dir: Path, pattern: str) -> dict:
+    """
+    Searches for a JSON file matching the pattern and returns its contents as a dictionary.
+    Raises FileNotFoundError or ValueError if it fails, ensuring it never returns None.
+    """
+    matching_files = list(main_dir.rglob(pattern))
+
+    if not matching_files:
+        raise FileNotFoundError(f"No matching JSON file found for pattern: '{pattern}' in {main_dir}")
+    
+    # Take the first matching file found
+    target_file = matching_files[0]
+    print(f"Found file: {target_file}")
+    
+    # Open and read the JSON content
+    try:
+        data = json.loads(target_file.read_text(encoding='utf-8'))
+        print("Successfully read JSON data")
+        return data
+        
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Error: The file {target_file} is not a valid JSON document.\n{e}")
+    except Exception as e:
+        raise RuntimeError(f"An unexpected error occurred while reading {target_file}: {e}")
+
+
+
+
+####### Synthetic data creation
+
+def build_observation_grid(region: tuple, spacing: float, height: float):
+    """Generates the 3D coordinate arrays for the survey using Verde."""
+    print(f"Building grid over region {region} with spacing {spacing}m...")
+    coordinates = vd.grid_coordinates(region, spacing=spacing, extra_coords=height)
+    return coordinates
+
+
+def build_scattered_observation_surface(region: tuple, n_points: int, base_height: float, seed: int):
+    """Generates true random scattered coordinates and a draped observation surface."""
+    print(f"Generating {n_points} scattered observation points...")
+    rng = np.random.default_rng(seed)
+    
+    # 1. Generate continuous random X and Y coordinates
+    easting = rng.uniform(region[0], region[1], size=n_points)
+    northing = rng.uniform(region[2], region[3], size=n_points)
+    
+    # 2. Create a draped observation surface (simulating varying topography)
+    # Adds a synthetic rolling hill effect to the base clearance height
+    topo_variation = 50.0 * np.sin(easting / 600.0) + 30.0 * np.cos(northing / 400.0)
+    upwards = base_height + topo_variation
+    
+    return (easting, northing, upwards)
+
+
+def generate_synthetic_fields(
+    coords: tuple, 
+    prisms: List[list], 
+    densities: List[float], 
+    intensities: List[float], 
+    inc: float, 
+    dec: float
+):
+    """Computes gravity and magnetic fields for N prisms using Harmonica."""
+    print(f"Computing forward models for {len(prisms)} prisms...")
+    
+    # Calculate Gravity (g_z)
+    # Harmonica accepts lists of prisms and lists of densities directly
+    gz = hm.prism_gravity(coords, prisms, density=densities, field="g_z")
+    
+    # Calculate Magnetic (TFA)
+    mag_e = []
+    mag_n = []
+    mag_u = []
+    
+    # Build component arrays across all prisms
+    for intensity in intensities:
+        cosine_dir = kn.get_direction_cosines_enu(inc, dec)
+        vector = kn.get_magnetization_vector_enu(intensity, cosine_dir)
+        mag_e.append(vector[0])
+        mag_n.append(vector[1])
+        mag_u.append(vector[2])
+    
+    # Harmonica expects a tuple of 1D arrays for multiple varying magnetizations
+    mag_vectors = (np.array(mag_e), np.array(mag_n), np.array(mag_u))
+    
+    b_e, b_n, b_u = hm.prism_magnetic(coords, prisms, magnetization=mag_vectors, field="b")
+    tfa = hm.total_field_anomaly([b_e, b_n, b_u], inc, dec)
+    
+    return gz, tfa
 
 
 
@@ -50,6 +256,8 @@ def add_gaussian_noise(field: np.ndarray,
 
     return noisy_field
 
+
+########### PLOTS
 
 
 def plot_field_contourf(xcoords: np.ndarray, 
@@ -117,6 +325,125 @@ def plot_field_contourf(xcoords: np.ndarray,
     else:
         plt.close(fig)
 
+
+
+def plot_scattered_data(
+    xcoords: np.ndarray, 
+    ycoords: np.ndarray, 
+    data: np.ndarray, 
+    title: str, 
+    xlabel: str, 
+    ylabel: str, 
+    unit: str, 
+    figname: Union[str, Path], 
+    cmap: str = "viridis", 
+    point_size: float = 15.0,
+    show: bool = False
+) -> None:
+    """
+    Plots irregularly spaced (scattered) field data.
+
+    Parameters
+    ----------
+    xcoords, ycoords : np.ndarray
+        1D arrays of observation coordinates.
+    data : np.ndarray
+        1D array of the field data (e.g., TFA, gz, or elevation).
+    title, xlabel, ylabel, unit : str
+        Plot labels.
+    figname : str | Path
+        Output file path.
+    cmap : str, optional
+        Colormap (default is "viridis").
+    point_size : float, optional
+        Size of the scatter markers (default is 15.0).
+    show : bool, optional
+        Whether to display the plot interactively.
+    """
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Use scatter instead of contourf for unstructured 1D data
+    sc = ax.scatter(xcoords, ycoords, c=data, cmap=cmap, s=point_size, edgecolor='none')
+    
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    
+    # Lock aspect ratio to map coordinates correctly
+    ax.set_aspect("equal")
+    
+    cbar = fig.colorbar(sc, ax=ax)
+    cbar.set_label(unit)
+    
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"Scatter plot saved to: {figname}")
+    
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+
+def plot_scattered_surface_3d(
+    xcoords: np.ndarray,
+    ycoords: np.ndarray,
+    zcoords: np.ndarray,
+    title: str,
+    figname: Union[str, Path],
+    cmap: str = "terrain",
+    elev: float = 30.0,
+    azim: float = -60.0,
+    show: bool = False
+) -> None:
+    """
+    Plots a 3D topographic surface from scattered (x, y, z) coordinates 
+    using Delaunay triangulation.
+
+    Parameters
+    ----------
+    xcoords, ycoords, zcoords : np.ndarray
+        1D arrays of the scattered observation coordinates.
+    title : str
+        Plot title.
+    figname : str | Path
+        Output file path.
+    cmap : str, optional
+        Colormap (default is "terrain").
+    elev, azim : float, optional
+        Camera elevation and azimuth angles.
+    show : bool, optional
+        Whether to display the plot interactively.
+    """
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # plot_trisurf automatically triangulates the scattered 1D arrays into a 3D surface
+    surf = ax.plot_trisurf(
+        xcoords, ycoords, zcoords, 
+        cmap=cmap, 
+        linewidth=0.2, 
+        edgecolor='grey',
+        alpha=0.9
+    )
+    
+    ax.set_title(title)
+    ax.set_xlabel("Easting (m)")
+    ax.set_ylabel("Northing (m)")
+    ax.set_zlabel("Observation Height (m)")
+    
+    # Add a colorbar scaled to the surface heights
+    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=12, label="Height (m)")
+    
+    ax.view_init(elev=elev, azim=azim)
+    
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"3D Surface plot saved to: {figname}")
+    
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
 
 
 def plot_transformation_results(
@@ -303,6 +630,7 @@ def calculate_rmse(targets, predictions):
     return np.sqrt(np.mean((predictions - targets) ** 2))
 
 
+
 def plot_matrix(
     matrix: np.ndarray,
     title: str,
@@ -399,85 +727,10 @@ def plot_physical_property_distribution_matrix(easting: np.ndarray,
     plt.close(fig)
 
 
-def find_read_json_file(main_dir: Path, pattern: str) -> dict:
-    """
-    Searches for a JSON file matching the pattern and returns its contents as a dictionary.
-    Raises FileNotFoundError or ValueError if it fails, ensuring it never returns None.
-    """
-    matching_files = list(main_dir.rglob(pattern))
-
-    if not matching_files:
-        raise FileNotFoundError(f"No matching JSON file found for pattern: '{pattern}' in {main_dir}")
-    
-    # Take the first matching file found
-    target_file = matching_files[0]
-    print(f"Found file: {target_file}")
-    
-    # Open and read the JSON content
-    try:
-        data = json.loads(target_file.read_text(encoding='utf-8'))
-        print("Successfully read JSON data")
-        return data
-        
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Error: The file {target_file} is not a valid JSON document.\n{e}")
-    except Exception as e:
-        raise RuntimeError(f"An unexpected error occurred while reading {target_file}: {e}")
 
 
-def create_pipeline_config(
-    savepath: Path,
-    data_type: str,
-    filename: str,
-    easting_col: str = "X",
-    northing_col: str = "Y",
-    upwards_col: str = "Z",
-    field: str = "obs",
-    z_top: float = -300.0,
-    z_bottom: float = -800.0,
-    incf: float = 90.0,
-    decf: float = 0.0,
-    incs: float = 90.0,
-    decs: float = 0.0,
-    transformations: dict = None
-) -> None:
-    """
-    Creates and saves the unified pipeline configuration (pipeline_config.json).
-    """
-    if transformations is None:
-        # Default transformations block if none provided
-        transformations = {
-            "upward_continuation": {"execute": False, "dz": 500},
-            "downward_continuation": {"execute": False, "dz": -150},
-            "reduction_to_pole": {"execute": False, "inc_new": 90, "dec_new": 0}
-        }
 
-    config = {
-        "project_settings": {
-            "data_type": data_type,
-            "filename": filename
-        },
-        "data_columns": {
-            "easting_col": easting_col,
-            "northing_col": northing_col,
-            "upwards_col": upwards_col,
-            "field": field
-        },
-        "inversion_parameters": {
-            "z_top": z_top,
-            "z_bottom": z_bottom,
-            "incf": incf,
-            "decf": decf,
-            "incs": incs,
-            "decs": decs
-        },
-        "transformations": transformations
-    }
-    
-    filepath = savepath / "pipeline_config.json"
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=4)
-    print(f"Pipeline config successfully saved to: {filepath}")
+
 
 
 

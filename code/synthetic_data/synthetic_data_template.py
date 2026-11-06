@@ -68,123 +68,29 @@ plot_azimuth = -60
 # =========================================================
 # 2. CORE FUNCTIONS
 # =========================================================
-
-def build_observation_grid(region: tuple, spacing: float, height: float):
-    """Generates the 3D coordinate arrays for the survey using Verde."""
-    print(f"Building grid over region {region} with spacing {spacing}m...")
-    coordinates = vd.grid_coordinates(region, spacing=spacing, extra_coords=height)
-    return coordinates
-
-def generate_synthetic_fields(
-    coords: tuple, 
-    prisms: List[list], 
-    densities: List[float], 
-    intensities: List[float], 
-    inc: float, 
-    dec: float
-):
-    """Computes gravity and magnetic fields for N prisms using Harmonica."""
-    print(f"Computing forward models for {len(prisms)} prisms...")
-    
-    # Calculate Gravity (g_z)
-    # Harmonica accepts lists of prisms and lists of densities directly
-    gz = hm.prism_gravity(coords, prisms, density=densities, field="g_z")
-    
-    # Calculate Magnetic (TFA)
-    mag_e = []
-    mag_n = []
-    mag_u = []
-    
-    # Build component arrays across all prisms
-    for intensity in intensities:
-        cosine_dir = kn.get_direction_cosines_enu(inc, dec)
-        vector = kn.get_magnetization_vector_enu(intensity, cosine_dir)
-        mag_e.append(vector[0])
-        mag_n.append(vector[1])
-        mag_u.append(vector[2])
-    
-    # Harmonica expects a tuple of 1D arrays for multiple varying magnetizations
-    mag_vectors = (np.array(mag_e), np.array(mag_n), np.array(mag_u))
-    
-    b_e, b_n, b_u = hm.prism_magnetic(coords, prisms, magnetization=mag_vectors, field="b")
-    tfa = hm.total_field_anomaly([b_e, b_n, b_u], inc, dec)
-    
-    return gz, tfa
-
-def export_synthetic_data(
-    model_name: str, 
-    coords: tuple, 
-    gz_noisy: np.ndarray, 
-    tfa_noisy: np.ndarray,
-    prisms: List[list], 
-    densities: List[float], 
-    intensities: List[float], 
-    inc: float, 
-    dec: float
-):
-    """Saves arrays to CSV files and generates the metadata and true source configs."""
-    datapath = DATA_FOLDER / model_name
-    datapath.mkdir(exist_ok=True, parents=True)
-    
-    easting, northing, upwards = coords
-    header = "X,Y,Z,obs"
-    
-    print(f"Exporting data to {datapath}...")
-    
-    # Gravity export
-    grav_array = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), gz_noisy.ravel()))
-    np.savetxt(datapath / f"{model_name}_grav.csv", grav_array, delimiter=",", header=header, comments="", fmt="%.6f")
-    
-    # Magnetic export
-    mag_array = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), tfa_noisy.ravel()))
-    np.savetxt(datapath / f"{model_name}_mag.csv", mag_array, delimiter=",", header=header, comments="", fmt="%.6f")
-    
-    # Create Pipeline Config
-    ut.create_pipeline_config(
-        savepath=datapath,
-        data_type="magnetic", 
-        filename=f"{model_name}_mag.csv",
-        z_top=EQ_LAYER_Z_TOP,
-        z_bottom=EQ_LAYER_Z_BOTTOM,
-        incf=inc, decf=dec, incs=inc, decs=dec
-    )
-    
-    # Create True Source Config
-    true_source_config = {
-        "prisms": prisms,
-        "densities": densities,
-        "intensities": intensities,
-        "inc": inc,
-        "dec": dec
-    }
-    
-    source_filepath = datapath / "true_source_config.json"
-    with open(source_filepath, "w", encoding="utf-8") as f:
-        json.dump(true_source_config, f, indent=4)
-    print(f"True source config successfully saved to: {source_filepath}")
-        
-    return datapath
+# Available at utils module
 
 #=========================================================
-# 3. EXECUTION WORKFLOW
+# 2. EXECUTION WORKFLOW
 # =========================================================
 if __name__ == "__main__":
     
     # 1. Build Grid
-    coords = build_observation_grid(REGION, SPACING, OBS_HEIGHT)
+    coords = ut.build_observation_grid(REGION, SPACING, OBS_HEIGHT)
     easting, northing, _ = coords
     
     # 2. Compute Fields
-    gz, tfa = generate_synthetic_fields(coords, PRISMS, DENSITIES, INTENSITIES, INC, DEC)
+    gz, tfa = ut.generate_synthetic_fields(coords, PRISMS, DENSITIES, INTENSITIES, INC, DEC)
     
     # 3. Add Noise
     gz_noisy = ut.add_gaussian_noise(gz, NOISE_PERCENTAGE, SEED) 
     tfa_noisy = ut.add_gaussian_noise(tfa, NOISE_PERCENTAGE, SEED) 
     
     # 4. Export CSVs and Configs (Updated to pass true source parameters)
-    output_dir = export_synthetic_data(
+    output_dir = ut.export_synthetic_data(
         MODEL_NAME, coords, gz_noisy, tfa_noisy, 
-        PRISMS, DENSITIES, INTENSITIES, INC, DEC
+        PRISMS, DENSITIES, INTENSITIES, INC, DEC,
+        DATA_FOLDER, EQ_LAYER_Z_TOP, EQ_LAYER_Z_BOTTOM,
     )
     
     # 5. Visualizations
