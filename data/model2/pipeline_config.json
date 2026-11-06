@@ -1,7 +1,7 @@
 {
     "project_settings": {
-        "data_type": "magnetic",
-        "filename": "model2_mag.csv"
+        "gravity_file": "model2_grav.csv",
+        "magnetic_file": "model2_mag.csv"
     },
     "data_columns": {
         "easting_col": "X",
@@ -15,21 +15,35 @@
         "incf": 45.0,
         "decf": 12.0,
         "incs": 45.0,
-        "decs": 12.0
+        "decs": 12.0,
+        "reg_min": 1e-6,
+        "reg_max": 1e2,
+        "steps": 20
     },
-    "transformations": {
+    "magnetic_transformations": {
         "upward_continuation": {
-            "execute": false,
+            "execute": true,
             "dz": 500
         },
-        "downward_continuation": {
-            "execute": false,
-            "dz": -150
-        },
         "reduction_to_pole": {
-            "execute": false,
+            "execute": true,
             "inc_new": 90,
             "dec_new": 0
+        }
+    },
+    "gravity_transformations": {
+        "upward_continuation": {
+            "execute": false,
+            "dz": 200
+        }
+    },
+    "joint_analysis": {
+        "poisson_ratio": {
+            "execute": true,
+            "density_threshold": 0.05,
+            "mu0_min": 1e-6,
+            "mu0_max": 1e4,
+            "steps": 30
         }
     }
 }
