@@ -729,9 +729,11 @@ def get_direction_cosines_enu(inc: float, dec: float) -> np.ndarray:
 def get_magnetization_vector_enu(intensity: float, cosine_dir: np.ndarray):
     # Conversion to Cartesian (ENU)
     # Z is Up, Inc is positive Down -> Mz = -sin(I)
+    # cosine_dir[2] (get_direction_cosines_enu) is already -sin(I): it must
+    # not be negated again, or the magnetization points up (sign fixed).
     mag_e = intensity * cosine_dir[0]
     mag_n = intensity * cosine_dir[1]
-    mag_u = -intensity * cosine_dir[2]
+    mag_u = intensity * cosine_dir[2]
     magnetization = (mag_e, mag_n, mag_u)
 
     return magnetization
@@ -840,3 +842,61 @@ def compute_rtp_transformation(
     print(f"RTP Transformation Peak Memory: {peak_ram_mb:.2f} MB")
     
     return d_transformed
+
+
+
+def compute_layer_ratio(
+    p_mag: np.ndarray,
+    p_grav: np.ndarray,
+    prisms_mag: np.ndarray,
+    prisms_grav: np.ndarray,
+    threshold: float = 0.05
+) -> np.ndarray:
+    """
+    Poisson ratio M/rho prism by prism, from two equivalent layers with the
+    same prisms (Santos, 2019): one estimated from gravity data (density,
+    kg/m^3) and one from magnetic data (magnetization, A/m).
+
+    Poisson relation: T_pole = C (M/rho) dg_z/dz, with C = 1/(G * 1e3)
+    in the units nT, mGal/m and A m^2/kg. If the sources are the same and
+    M/rho is constant, the magnetic layer is the gravity layer times M/rho.
+
+    Parameters
+    ----------
+    p_mag : np.ndarray
+        Magnetization of each prism (A/m), magnetic layer.
+    p_grav : np.ndarray
+        Density of each prism (kg/m^3), gravity layer.
+    prisms_mag, prisms_grav : np.ndarray
+        Prism boundaries (N x 6) of each layer; they must be the same.
+    threshold : float, optional
+        The ratio is NaN where |p_grav| <= threshold * max(|p_grav|): where
+        the density contrast is (almost) zero, the division has no meaning.
+        Negative density contrasts are kept; with a negative magnetization
+        contrast they give a positive M/rho, with a positive one a negative
+        M/rho (a sign that the sources are not the same).
+
+    Returns
+    -------
+    ratio : np.ndarray
+        M/rho of each prism (A m^2/kg), NaN where undefined.
+    """
+    p_mag = np.asarray(p_mag, dtype=float)
+    p_grav = np.asarray(p_grav, dtype=float)
+
+    if p_mag.shape != p_grav.shape:
+        raise ValueError("The two layers must have the same number of prisms.")
+    if not np.allclose(prisms_mag, prisms_grav): # If the magnetic and gravity prisms are not approximately equal, execute the code block below.
+        raise ValueError("The gravity and magnetic layers must have the same prisms "
+                         "(same grid, z_top and z_bottom).")
+    
+    max_abs_grav = np.max(np.abs(p_grav))
+    if max_abs_grav == 0.0:
+        raise ValueError("The gravity layer is zero everywhere.")
+
+    ratio = np.full(p_mag.shape, np.nan)
+    # Divide only where |density| is not close to zero
+    valid = np.abs(p_grav) > threshold * max_abs_grav
+    ratio[valid] = p_mag[valid] / p_grav[valid]
+
+    return ratio
