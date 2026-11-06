@@ -89,12 +89,15 @@ rmse_total = np.sqrt(np.mean(diff**2))
 print(f"Validation RMSE (Full Grid): {rmse_total:.4f} nT")
 
 # Plot using your utility function
+pathsave = BASE_FOLDER / "continuation_validation"
+pathsave.mkdir(exist_ok=True, parents=True)
+
 ut.plot_transformation_results(
     X, Y, 
     true_tfa_500, # Original target
     d_transformed.reshape(X.shape), # Our equivalent layer calculation
     f"Validation RMSE: {rmse_total:.4f} nT", 
-    "validation_plot.png", 
+    pathsave/"continuation_validation_plot.png", 
     "Eq. Layer Upward Cont.",
     show=False
 )
