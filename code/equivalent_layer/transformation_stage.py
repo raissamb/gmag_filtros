@@ -40,18 +40,24 @@ DATA_FOLDER = PROJECT_HOME / "data"
 import modules.utils as ut
 import modules.kernel as kn
 
-def run_transformations(dataset_name: str):
+def run_transformations(dataset_name: str, data_type: str):
     print(f"\n--- Starting Field Transformations for {dataset_name} ---")
-    
-    config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
 
+    config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
     proj = config["project_settings"]
     cols = config["data_columns"]
     inv = config["inversion_parameters"]
-    transformations_dict = config.get("transformations", {})
-
-    data_type = proj["data_type"]
-    filename = proj["filename"]
+    
+    # Route to the correct configuration block based on data type
+    if data_type in ["mag", "magnetic"]:
+        filename = proj.get("magnetic_file")
+        transformations_dict = config.get("magnetic_transformations", {})
+    elif data_type in ["grav", "gravity"]:
+        filename = proj.get("gravity_file")
+        transformations_dict = config.get("gravity_transformations", {})
+    else:
+        raise ValueError("Invalid data_type provided to transformations.")
+    
     easting_col = cols["easting_col"]
     northing_col = cols["northing_col"]
     upwards_col = cols["upwards_col"]
@@ -71,7 +77,7 @@ def run_transformations(dataset_name: str):
     northing = df_obs[northing_col].to_numpy()
     upwards = df_obs[upwards_col].to_numpy()
 
-    es_data = f"{data_type}_sources_parameters.csv"
+    es_data = f"{data_type}_standard_sources_parameters.csv"
     df_sources = pd.read_csv(dirpath / es_data)
 
     N = len(df_sources)
@@ -104,7 +110,7 @@ def run_transformations(dataset_name: str):
             ut.plot_transformation_results(
                 easting.reshape(grid_shape), northing.reshape(grid_shape),
                 d_obs.reshape(grid_shape), d_transformed.reshape(grid_shape),
-                f"{trans_name}", dirpath / f"{data_type}_{trans_name}.png", "nT", show=False
+                f"{trans_name}", dirpath / f"{data_type}_{trans_name}_{dz}m.png", "nT", show=False
             )
 
         elif trans_name == "reduction_to_pole":

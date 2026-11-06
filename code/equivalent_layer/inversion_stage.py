@@ -40,29 +40,58 @@ import modules.utils as ut
 import modules.kernel as kn
 
 
-def run_inversion(dataset_name: str):
+def run_inversion(dataset_name: str,
+                  data_type: str | None, 
+                  filename: str | None, 
+                  mu0_range: tuple | None):
+    """
+    Builds the equivalent layer of one dataset.
+
+    data_type and filename are optional: when given, they replace the values
+    of "project_settings" in pipeline_config.json. This lets the Poisson ratio
+    stage invert the gravity and the magnetic data of the same dataset.
+
+    mu0_range is optional, (mu0_min, mu0_max, steps). When given, the
+    same L-curve (run_tikhonov_l_curve_scan_ces) scans
+    mu = mu0 * tr(G^T G) / tr(R^T R), with mu0 from mu0_min to mu0_max.
+    """
+
     print(f"\n--- Starting Equivalent Layer Inversion for {dataset_name} ---")
     
     # # ---------------------------------------------------------
     # # Read the single unified configuration file
     # # ---------------------------------------------------------
     config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
-
     proj = config["project_settings"]
     cols = config["data_columns"]
     inv = config["inversion_parameters"]
 
-    data_type = proj["data_type"]
-    filename = proj["filename"]
+    # Determine filename dynamically if not explicitly passed
+    if filename is None:
+        if data_type in ["mag", "magnetic"]:
+            filename = proj.get("magnetic_file")
+        elif data_type in ["grav", "gravity"]:
+            filename = proj.get("gravity_file")
+            
+    if not filename or not data_type:
+        raise ValueError("Data type and filename must be resolved before proceeding.")
+    
+    # Survey variables from config file
     easting_col = cols["easting_col"]
     northing_col = cols["northing_col"]
     upwards_col = cols["upwards_col"]
     field = cols["field"]
 
+    # Inversion variables
     z_top = inv["z_top"]
     z_bottom = inv["z_bottom"]
     incs = inv.get("incs", 90.0)
     decs = inv.get("decs", 0.0)
+
+    # Read L-curve parameters from config, with safe fallbacks
+    cfg_reg_min = inv.get("reg_min", 1e-6)
+    cfg_reg_max = inv.get("reg_max", 1e2)
+    cfg_steps = inv.get("steps", 20)
 
     dirpath = DATA_FOLDER / dataset_name / "output"
     dirpath.mkdir(exist_ok=True, parents=True)
@@ -109,14 +138,31 @@ def run_inversion(dataset_name: str):
     # # ---------------------------------------------------------
     # # Solve system
     # # ---------------------------------------------------------
+    if mu0_range is None:
+        # L-curve: Use absolute limits defined in pipeline_config.json
+        reg_min, reg_max, steps = cfg_reg_min, cfg_reg_max, cfg_steps
+        scale = 1.0
+    else:
+        # L-curve with scaled limits: mu = mu0 * tr(G^T G) / tr(R^T R).
+        # The same mu0 range gives the same relative smoothness for gravity
+        # and magnetic data, whose Jacobians have very different magnitudes.
+        mu0_min, mu0_max, steps = mu0_range
+        scale = float(np.einsum("ij,ij->", G, G)) / RTR.diagonal().sum()
+        reg_min, reg_max = mu0_min * scale, mu0_max * scale
+        print(f"Scaled L-curve: mu0 from {mu0_min:.1e} to {mu0_max:.1e} "
+              f"({int(steps)} steps), scale tr(G^T G)/tr(R^T R) = {scale:.3e}")
+
     df_metrics, best_solution, _, _ = kn.run_tikhonov_l_curve_scan_ces(
-        G, d_obs, RTR, 1e-6, 1e2, 20
+        G, d_obs, RTR, reg_min, reg_max, int(steps)
     )
 
     mu_opt = best_solution["reg_value"]
     p_tilde = best_solution["p_est"]
     rmse_opt = best_solution["rmse"]
+    if mu0_range is not None:
+        print(f"L-curve choice: mu0 = {mu_opt / scale:.2e}")
 
+    
     # # ---------------------------------------------------------
     # # Compare predicted value with observed value
     # # ---------------------------------------------------------
@@ -128,24 +174,30 @@ def run_inversion(dataset_name: str):
     print(f"Optimal Regularization (mu): {mu_opt:.2e}")
     print(f"Negative values for magnetization: {np.count_nonzero(p_tilde < 0.0)}")
 
+
     # # ---------------------------------------------------------
     # # Export equivalent layer parameters file
     # # ---------------------------------------------------------
+    # Differentiate filenames based on the run type
+    run_type = "poisson_scaled" if mu0_range is not None else "standard"
+    
     data = pd.DataFrame(prisms_layer, columns=["West", "East", "South", "North", "Bottom", "Top"])
     data["P_est"] = p_tilde
-    data.to_csv(dirpath / f"{data_type}_sources_parameters.csv", index=False)
+    
+    # Export CSVs with the run_type suffix
+    data.to_csv(dirpath / f"{data_type}_{run_type}_sources_parameters.csv", index=False)
 
     df_metrics_export = df_metrics.drop(columns=["p_est"])
-    df_metrics_export.to_csv(dirpath / f"{data_type}_l_curve_metrics.csv", index=False)
+    df_metrics_export.to_csv(dirpath / f"{data_type}_{run_type}_l_curve_metrics.csv", index=False)
 
     # # ---------------------------------------------------------
     # # Plot results
     # # ---------------------------------------------------------
-    figname = dirpath / "obs_predicted.png"
+    # Save the figure with the run_type suffix
+    figname = dirpath / f"{data_type}_{run_type}_obs_predicted.png"
     ut.compare_eq_layer_results(
         easting.reshape(grid_shape), northing.reshape(grid_shape),
         d_obs.reshape(grid_shape), predicted_data.reshape(grid_shape),
         "Observed vs Predicted", figname, mu_opt, False
     )
-
 

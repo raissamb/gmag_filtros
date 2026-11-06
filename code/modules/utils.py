@@ -50,8 +50,8 @@ def export_synthetic_data(
     # Create Pipeline Config
     create_pipeline_config(
         savepath=datapath,
-        data_type="magnetic", 
-        filename=f"{model_name}_mag.csv",
+        gravity_file=f"{model_name}_grav.csv",
+        magnetic_file=f"{model_name}_mag.csv",
         z_top=EQ_LAYER_Z_TOP,
         z_bottom=EQ_LAYER_Z_BOTTOM,
         incf=inc, decf=dec, incs=inc, decs=dec
@@ -77,8 +77,8 @@ def export_synthetic_data(
 
 def create_pipeline_config(
     savepath: Path,
-    data_type: str,
-    filename: str,
+    gravity_file: str,
+    magnetic_file: str,
     easting_col: str = "X",
     northing_col: str = "Y",
     upwards_col: str = "Z",
@@ -89,23 +89,17 @@ def create_pipeline_config(
     decf: float = 0.0,
     incs: float = 90.0,
     decs: float = 0.0,
-    transformations: dict = None
+    reg_min: float = 1e-6,
+    reg_max: float = 1e2,
+    steps: int = 20
 ) -> None:
     """
     Creates and saves the unified pipeline configuration (pipeline_config.json).
     """
-    if transformations is None:
-        # Default transformations block if none provided
-        transformations = {
-            "upward_continuation": {"execute": False, "dz": 500},
-            "downward_continuation": {"execute": False, "dz": -150},
-            "reduction_to_pole": {"execute": False, "inc_new": 90, "dec_new": 0}
-        }
-
     config = {
         "project_settings": {
-            "data_type": data_type,
-            "filename": filename
+            "gravity_file": gravity_file,
+            "magnetic_file": magnetic_file
         },
         "data_columns": {
             "easting_col": easting_col,
@@ -119,9 +113,37 @@ def create_pipeline_config(
             "incf": incf,
             "decf": decf,
             "incs": incs,
-            "decs": decs
+            "decs": decs,
+            "reg_min": reg_min,
+            "reg_max": reg_max,
+            "steps": steps
         },
-        "transformations": transformations
+        "magnetic_transformations": {
+            "upward_continuation": {
+                "execute": False,
+                "dz": 500
+            },
+            "reduction_to_pole": {
+                "execute": False,
+                "inc_new": 90,
+                "dec_new": 0
+            }
+        },
+        "gravity_transformations": {
+            "upward_continuation": {
+                "execute": False,
+                "dz": 200
+            }
+        },
+        "joint_analysis": {
+            "poisson_ratio": {
+                "execute": False,
+                "density_threshold": 0.05,
+                "mu0_min": 1e-6,
+                "mu0_max": 1e4,
+                "steps": 30
+            }
+        }
     }
     
     filepath = savepath / "pipeline_config.json"
