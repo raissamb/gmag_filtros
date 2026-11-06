@@ -1,0 +1,35 @@
+{
+    "project_settings": {
+        "data_type": "magnetic",
+        "filename": "model_scattered_mag.csv"
+    },
+    "data_columns": {
+        "easting_col": "X",
+        "northing_col": "Y",
+        "upwards_col": "Z",
+        "field": "obs"
+    },
+    "inversion_parameters": {
+        "z_top": -200.0,
+        "z_bottom": -1000.0,
+        "incf": 45.0,
+        "decf": 12.0,
+        "incs": 45.0,
+        "decs": 12.0
+    },
+    "transformations": {
+        "upward_continuation": {
+            "execute": false,
+            "dz": 500
+        },
+        "downward_continuation": {
+            "execute": false,
+            "dz": -150
+        },
+        "reduction_to_pole": {
+            "execute": false,
+            "inc_new": 90,
+            "dec_new": 0
+        }
+    }
+}
