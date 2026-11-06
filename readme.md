@@ -74,67 +74,127 @@ pip install -r requirements.txt
 
 Pronto, o ambiente já está configurado, pode começar a trabalhar :)
 
-## Como usar
+## Descrição do diretório
 
-Cada dataset deve ser salvo dentro da pasta project/data/**dataset_name**. Nessa pasta deve conter um arquivo com os dados grav e outro com os dados mag. Cada arquivo de dados observados deve seguir a ordem: X,Y,Z,Obs, onde X é Easting, Y é Northing, Z é upwards e Obs é o dado observado. Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards em metros, positivo para cima.
+Esse projeto contém as seguintes pastas:
 
-O arquivo metadata_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo. Copie esse arquivo na pasta do dataset e o preencha com as informações necessárias.
+- code
+- synthetic data
+- validation
+- data
+- output
+
+### Pasta Code
+
+A pasta code é onde fica localizado todos os códigos do trabalho, divididas em subpastas:
+
+- equivalent_layer: onde ficam os códigos principais
+    - run_ceq.py: é o script principal que executa todas as tarefas
+    - inversion_stage.py: é o script responsável pela construção da camada equivalente
+    - transformation_stage: é o script que executa a maioria das transformações
+    - poisson_stage: script que contém as instruções para a execução da transformação Razão de Poisson (Poisson ratio)
+
+- frequency: contém o código adaptado do fortran que realiza diversas transformações no domínio da frequencia
+
+- modules: contém os módulos onde as funções que executam diversas tarefas estão
+    - constants.py: módulo para guardar valores de constantes, não usado no momento
+    - kernel.py: contém as funções do método grav e mag
+    - utils.py: contém funções de leitura e escrita de dados e plots
+
+
+### Pasta synthetic data
+
+Essa pasta contém os scripts que produzem modelos sintéticos.
+
+- synthetic_data_template.py: produz dados sintéticos (grav e mag) em grid regular e superficie de observação plana, N prismas.
+- synthetic_data_scattered: produz dados sintéticos (grav e mag) em dados espalhados espacialmente.
+
+### Pasta validation
+
+Aqui está os testes que mostram a validação das funções que realizam as Transformações.
+
+**Sugestão**: para desenvolver sua transformação, faça nesse formato onde um unico arquivo le os dados de entrada e produz a transformação. Assim que o resultado for validado, a sua função será depois incorporado ao código do projeto.
+
+### Pasta data
+
+Nessa pasta estão os datasets a serem analizados. Cada subpasta aqui deve ser um único dataset. A execução do script run_ceq.py lê essa pasta e os arquivos contidos nela para produzir resultados, assim os resultados estão em gmag_filtros/data/dataset_name/output/.
+
+## Como usar o run_ceq.py
+
+Antes de qualquer coisa, garanta que o terminal esteja aberto (e com ambiente virtual ativado) na pasta onde está o run_ceq.py, ou seja, no terminal deve ter um caminho desse tipo: **seu_caminho/gmag_filtros/code/equivalent_layer**.
+
+Cada dataset deve ser salvo dentro da pasta gmag_filtros/data/**dataset_name**. Nessa pasta deve conter um arquivo com os dados grav e outro com os dados mag. Cada arquivo de dados observados deve seguir a ordem: X,Y,Z,Obs, onde X é Easting, Y é Northing, Z é upwards e Obs é o dado observado. Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards em metros, positivo para cima.
+
+O arquivo pipeline_config_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo. 
+Se você usar o script de criação de dado sintético, um arquivo chamado **pipeline_config.json** já terá sido criado na sua pasta, caso contrário, copie e cole na sua pasta de dados e o preencha com as informações necessárias.
 
 ```json
 {
     "project_settings": {
-        "data_type": "magnetic", 
-        "filename": "model1_mag.csv",
+        "gravity_file": "model2_grav.csv",
+        "magnetic_file": "model2_mag.csv"
     },
+
     "data_columns": {
         "easting_col": "X",
         "northing_col": "Y",
         "upwards_col": "Z",
         "field": "obs"
     },
+
+    
     "inversion_parameters": {
-        "z_top": -300,
-        "z_bottom": -800,
-        "incf": 90,
-        "decf": 0,
-        "incs": 90,
-        "decs": 0
+        "z_top": -200.0,
+        "z_bottom": -1000.0,
+        "incf": 45.0,
+        "decf": 12.0,
+        "incs": 45.0,
+        "decs": 12.0,
+        "reg_min": 1e-6,
+        "reg_max": 1e2,
+        "steps": 20
     },
-    "transformations": {
+
+
+    "magnetic_transformations": {
         "upward_continuation": {
             "execute": true,
             "dz": 500
-        },
-        "downward_continuation": {
-            "execute": true,
-            "dz": -150
         },
         "reduction_to_pole": {
             "execute": true,
             "inc_new": 90,
             "dec_new": 0
         }
+    },
+    "gravity_transformations": {
+        "upward_continuation": {
+            "execute": false,
+            "dz": 200
+        }
+    },
+    "joint_analysis": {
+        "poisson_ratio": {
+            "execute": true,
+            "density_threshold": 0.05,
+            "mu0_min": 1e-6,
+            "mu0_max": 1e4,
+            "steps": 30
+        }
     }
 }
 ```
 
-Para executar a construção da Camada Equivalente Clássica (um prisma embaixo de cada ponto de observação), vá na pasta project/code/equivalent_layer/ e encontre o arquivo run_ceq.py, esse é o arquivo que executa esta tarefa.
+Para executar a construção da Camada Equivalente Clássica (um prisma embaixo de cada ponto de observação), vá na pasta gmag_filtros/code/equivalent_layer/ e encontre o arquivo run_ceq.py, esse é o arquivo que executa esta tarefa. Então, no terminal digite o seguinte comando:
 
-Abre o arquivo e procure a linha onde está definido **dataset_name** (LÁ NO FINAL DO ARQUIVO run_ceq.py) e coloque o nome da sua pasta dataset, como mostrado no exemplo abaixo e execute o script, os resultados das transformações estarão em project/data/**dataset_name**/output/:
-
-```python
-if __name__ == "__main__":
-    # WRITE HERE THE FOLDER NAME OF WHERE THE DATASET IS! 
-    # THEN RUN THIS FILE TO EXECUTE THE PIPELINE
-    
-    target_dataset = "model1"  
-    main(target_dataset)
+```shell
+python run_ceq.py --dataset DATASET_NAME --type DATA_TYPE
 ```
 
-Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards, positivo para cima.
+Onde DATASET_NAME é o nome da sua pasta de dados e DATA_TYPE é o tipo de dado que será processado (grav/gravity ou mag/magnetic). Dê Enter e espera a finalização do processo, uma mensagem aparecerá no terminal quando o processo estiver completo.
 
 ## A fazer
 
-- Implementar as transformações: Derivadas, HGM, Tilt, ASA, Deconvolução de Euler e Razão de Poisson
+- Implementar as transformações: Derivadas, HGM, Tilt, ASA e Deconvolução de Euler
 
 - Para o caso da RTP, adicionar o vinculo de positividade para garantir magnetização estimada positiva, isso necessita mudar a forma de resolver o sistema já que Cholesky não será possível nessa situação
