@@ -1,0 +1,10 @@
+{
+    "eq_layer_config": "eq_layer1",
+    "transformation_type": "upward_continuation",
+    "data_type": "magnetic",
+    "execute": true,
+    "parameters": {
+        "dz": 500
+    }
+    
+}
