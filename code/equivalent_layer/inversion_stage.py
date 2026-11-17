@@ -185,7 +185,7 @@ def run_inversion(dataset_name: str,
     data["P_est"] = p_tilde
     
     # Export CSVs with the run_type suffix
-    data.to_csv(dirpath / f"{data_type}_{run_type}_sources_parameters.csv", index=False)
+    data.to_csv(dirpath / f"{data_type}_{run_type}_equivalent_sources_parameters.csv", index=False)
 
     df_metrics_export = df_metrics.drop(columns=["p_est"])
     df_metrics_export.to_csv(dirpath / f"{data_type}_{run_type}_l_curve_metrics.csv", index=False)

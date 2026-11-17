@@ -83,8 +83,8 @@ def run_poisson_ratio(dataset_name: str):
     inv_stage.run_inversion(dataset_name, data_type="gravity", filename=gravity_file, mu0_range=mu0_range)
     inv_stage.run_inversion(dataset_name, data_type="magnetic", filename=magnetic_file, mu0_range=mu0_range)
 
-    df_grav = pd.read_csv(dirpath / "gravity_poisson_scaled_sources_parameters.csv")
-    df_mag = pd.read_csv(dirpath / "magnetic_poisson_scaled_sources_parameters.csv")
+    df_grav = pd.read_csv(dirpath / "gravity_poisson_scaled_equivalent_sources_parameters.csv")
+    df_mag = pd.read_csv(dirpath / "magnetic_poisson_scaled_equivalent_sources_parameters.csv")
 
     prisms_grav = df_grav[PRISM_COLUMNS].to_numpy()
     prisms_mag = df_mag[PRISM_COLUMNS].to_numpy()

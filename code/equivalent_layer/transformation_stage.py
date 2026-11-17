@@ -77,7 +77,7 @@ def run_transformations(dataset_name: str, data_type: str):
     northing = df_obs[northing_col].to_numpy()
     upwards = df_obs[upwards_col].to_numpy()
 
-    es_data = f"{data_type}_standard_sources_parameters.csv"
+    es_data = f"{data_type}_standard_equivalent_sources_parameters.csv"
     df_sources = pd.read_csv(dirpath / es_data)
 
     N = len(df_sources)

@@ -89,18 +89,17 @@ Esse projeto contém as seguintes pastas:
 A pasta code é onde fica localizado todos os códigos do trabalho, divididas em subpastas:
 
 - equivalent_layer: onde ficam os códigos principais
-    - run_ceq.py: é o script principal que executa todas as tarefas
-    - inversion_stage.py: é o script responsável pela construção da camada equivalente
-    - transformation_stage: é o script que executa a maioria das transformações
-    - poisson_stage: script que contém as instruções para a execução da transformação Razão de Poisson (Poisson ratio)
+  - run_ceq.py: é o script principal que executa todas as tarefas
+  - inversion_stage.py: é o script responsável pela construção da camada equivalente
+  - transformation_stage: é o script que executa a maioria das transformações
+  - poisson_stage: script que contém as instruções para a execução da transformação Razão de Poisson (Poisson ratio)
 
 - frequency: contém o código adaptado do fortran que realiza diversas transformações no domínio da frequencia
 
 - modules: contém os módulos onde as funções que executam diversas tarefas estão
-    - constants.py: módulo para guardar valores de constantes, não usado no momento
-    - kernel.py: contém as funções do método grav e mag
-    - utils.py: contém funções de leitura e escrita de dados e plots
-
+  - constants.py: módulo para guardar valores de constantes, não usado no momento
+  - kernel.py: contém as funções do método grav e mag
+  - utils.py: contém funções de leitura e escrita de dados e plots
 
 ### Pasta synthetic data
 
@@ -125,7 +124,7 @@ Antes de qualquer coisa, garanta que o terminal esteja aberto (e com ambiente vi
 
 Cada dataset deve ser salvo dentro da pasta gmag_filtros/data/**dataset_name**. Nessa pasta deve conter um arquivo com os dados grav e outro com os dados mag. Cada arquivo de dados observados deve seguir a ordem: X,Y,Z,Obs, onde X é Easting, Y é Northing, Z é upwards e Obs é o dado observado. Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards em metros, positivo para cima.
 
-O arquivo pipeline_config_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo. 
+O arquivo pipeline_config_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo.
 Se você usar o script de criação de dado sintético, um arquivo chamado **pipeline_config.json** já terá sido criado na sua pasta, caso contrário, copie e cole na sua pasta de dados e o preencha com as informações necessárias.
 
 ```json
@@ -192,6 +191,8 @@ python run_ceq.py --dataset DATASET_NAME --type DATA_TYPE
 ```
 
 Onde DATASET_NAME é o nome da sua pasta de dados e DATA_TYPE é o tipo de dado que será processado (grav/gravity ou mag/magnetic). Dê Enter e espera a finalização do processo, uma mensagem aparecerá no terminal quando o processo estiver completo.
+
+### Exemplo de uso com dataset model2
 
 ## A fazer
 
