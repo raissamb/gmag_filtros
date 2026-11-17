@@ -6,6 +6,7 @@ Fonte: prisma
 import sys
 import numpy as np
 import harmonica as hm
+import json
 from pathlib import Path
 from typing import List
 
@@ -20,6 +21,7 @@ DATA_FOLDER = PROJECT_HOME / "data"
 
 import modules.kernel as kn
 import modules.utils as ut
+import modules.constants as ct
 
 # =========================================================
 # 1. MODEL CONFIGURATION
@@ -69,7 +71,7 @@ if __name__ == "__main__":
     
     output_dir = ut.export_synthetic_data(MODEL_NAME, coords, gz_noisy, tfa_noisy, 
                                           PRISMS, DENSITIES, INTENSITIES, INC, DEC,
-                                          DATA_FOLDER, EQ_LAYER_Z_TOP, EQ_LAYER_Z_BOTTOM,)
+                                          DATA_FOLDER)
 
     # 5. Visualizations
     print("Generating plots...")
@@ -102,6 +104,14 @@ if __name__ == "__main__":
         show=False
     )
     
-    
+    # 6. Create config folder with a default equivalent layer config file
+    config_folder = DATA_FOLDER / MODEL_NAME / "config"
+    config_folder.mkdir(exist_ok=True, parents=True)
+    eq_layer_config = ct.eq_layer_config
+    savepath = config_folder / "eq_layer1.json"
+    json_str = json.dumps(eq_layer_config, indent=4)
+    with open(savepath, "w") as f:
+        f.write(json_str)
+
     
     print("Synthetic scattered data generation complete.")
