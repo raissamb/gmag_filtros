@@ -112,11 +112,15 @@ Essa pasta contém os scripts que produzem modelos sintéticos.
 
 Aqui está os testes que mostram a validação das funções que realizam as Transformações.
 
-**Sugestão**: para desenvolver sua transformação, faça nesse formato onde um unico arquivo le os dados de entrada e produz a transformação. Assim que o resultado for validado, a sua função será depois incorporado ao código do projeto.
+**Sugestão**: para desenvolver sua transformação, faça nesse formato onde um unico arquivo le os dados de entrada e produz a transformação. Assim que o resultado for validado, a sua função será depois incorporado ao código do projeto. Olhe o arquivo gmag_filtros/code/validation/transf_name_validation.py para usar como template.
 
 ### Pasta data
 
-Nessa pasta estão os datasets a serem analizados. Cada subpasta aqui deve ser um único dataset. A execução do script run_ceq.py lê essa pasta e os arquivos contidos nela para produzir resultados, assim os resultados estão em gmag_filtros/data/dataset_name/output/.
+Nessa pasta estão os datasets a serem analizados. Cada subpasta aqui deve ser um único dataset. A execução do script run_ceq.py lê essa pasta e os arquivos contidos nela para produzir resultados, assim os resultados estão em gmag_filtros/data/dataset_name.
+
+### Pasta config_templates
+
+Aqui tem templates para criação de arquivos de configuração da camada equivalente e das transformações.
 
 ## Como usar o run_ceq.py
 
@@ -124,8 +128,22 @@ Antes de qualquer coisa, garanta que o terminal esteja aberto (e com ambiente vi
 
 Cada dataset deve ser salvo dentro da pasta gmag_filtros/data/**dataset_name**. Nessa pasta deve conter um arquivo com os dados grav e outro com os dados mag. Cada arquivo de dados observados deve seguir a ordem: X,Y,Z,Obs, onde X é Easting, Y é Northing, Z é upwards e Obs é o dado observado. Lembrando que o sistema de coordenadas esperado para a execução da Camada Equivalente Clássica (script run_ceq.py) é o ENU, onde Eixo X é Easting, Y é Northing e Z é Upwards em metros, positivo para cima.
 
-O arquivo pipeline_config_template.json presente na raiz do diretório é o modelo que deve ser usado para preencher as informações necessárias para construção da camada e transformações de campo.
-Se você usar o script de criação de dado sintético, um arquivo chamado **pipeline_config.json** já terá sido criado na sua pasta, caso contrário, copie e cole na sua pasta de dados e o preencha com as informações necessárias.
+### Exemplo com dataset model2
+
+Vamos usar como exemplo o dataset model2, dentro dessa pasta existe a pasta **input** onde estão os arquivos de dados observados mag e grav, bem como as imagens dos campos e da fonte verdadeira (isso é possível porque o arquivo synthetic_data_template.py ao gerar o dado sintético, já organiza desta forma). Outra pasta que já vai existir aqui caso o dataset tenha sido criado pelo script será a pasta **config**, com um arquivo chamado eq_layer1.json. Nessa pasta ficarão os arquivos de configuração para construção da camada equivalente e das transformações. Você deve preencher o arquivo eq_layer1.json com as informações relevantes para a construção da camada equivalente que você deseja. É possível construir várias camadas, desde que você use diferentes arquivos json para tal, basta copiar e mudar o nome do arquivo e preencher com as informações necessárias.
+
+Representação do diretório de model2:
+
+- data
+  - model2
+    - config
+      - eq_layer1.json
+    - input
+      - model2_grav.csv
+      - model2_mag.csv
+      - figuras e metadata file com informações da fonte
+
+Exemplo do arquivo eq_layer1.json para o dataset model2:
 
 ```json
 {
@@ -133,15 +151,12 @@ Se você usar o script de criação de dado sintético, um arquivo chamado **pip
         "gravity_file": "model2_grav.csv",
         "magnetic_file": "model2_mag.csv"
     },
-
     "data_columns": {
         "easting_col": "X",
         "northing_col": "Y",
         "upwards_col": "Z",
         "field": "obs"
     },
-
-    
     "inversion_parameters": {
         "z_top": -200.0,
         "z_bottom": -1000.0,
@@ -149,37 +164,9 @@ Se você usar o script de criação de dado sintético, um arquivo chamado **pip
         "decf": 12.0,
         "incs": 45.0,
         "decs": 12.0,
-        "reg_min": 1e-6,
-        "reg_max": 1e2,
+        "reg_min": 1e-06,
+        "reg_max": 100.0,
         "steps": 20
-    },
-
-
-    "magnetic_transformations": {
-        "upward_continuation": {
-            "execute": true,
-            "dz": 500
-        },
-        "reduction_to_pole": {
-            "execute": true,
-            "inc_new": 90,
-            "dec_new": 0
-        }
-    },
-    "gravity_transformations": {
-        "upward_continuation": {
-            "execute": false,
-            "dz": 200
-        }
-    },
-    "joint_analysis": {
-        "poisson_ratio": {
-            "execute": true,
-            "density_threshold": 0.05,
-            "mu0_min": 1e-6,
-            "mu0_max": 1e4,
-            "steps": 30
-        }
     }
 }
 ```
@@ -187,12 +174,95 @@ Se você usar o script de criação de dado sintético, um arquivo chamado **pip
 Para executar a construção da Camada Equivalente Clássica (um prisma embaixo de cada ponto de observação), vá na pasta gmag_filtros/code/equivalent_layer/ e encontre o arquivo run_ceq.py, esse é o arquivo que executa esta tarefa. Então, no terminal digite o seguinte comando:
 
 ```shell
-python run_ceq.py --dataset DATASET_NAME --type DATA_TYPE
+python run_ceq.py --dataset DATASET_NAME --type DATA_TYPE --eq-config EQ_FILENAME --trans-config TRANSFORMATION_FILENAME --poisson-config POISSON_FILENAME
 ```
 
-Onde DATASET_NAME é o nome da sua pasta de dados e DATA_TYPE é o tipo de dado que será processado (grav/gravity ou mag/magnetic). Dê Enter e espera a finalização do processo, uma mensagem aparecerá no terminal quando o processo estiver completo.
+Onde:
 
-### Exemplo de uso com dataset model2
+- DATASET_NAME é o nome da sua pasta de dados
+- DATA_TYPE é o tipo de dado que será processado (grav/gravity ou mag/magnetic)
+- EQ_FILENAME é o arquivo de configuração para criar a camada equivalente
+- TRANSFORMATION_FILENAME é o arquivo de configuração para uma transformação
+- POISSON_FILENAME é o arquivo de configuração específico para a transformação Razão de Poisson
+
+Dê Enter e espera a finalização do processo, uma mensagem aparecerá no terminal quando o processo estiver completo.
+
+**Observação**: você não precisa rodar o comando com todas as flags ativadas de uma única vez, é possível fazer por partes. Por exemplo, caso queira construir só a camada equivalente, use
+
+```shell
+python run_ceq.py --dataset DATASET_NAME --type DATA_TYPE --eq-config EQ_FILENAME 
+```
+
+Assim, uma pasta com o mesmo nome de EQ_FILENAME será criada para guardar os resultados da camada equivalente do tipo DATA_TYPE que criada com as informações presentes em EQ_FILENAME.
+
+Quando esta tarefa for executada, o diretório da dataset mudará para:
+
+- data
+  - model2
+    - config
+      - eq_layer1.json
+    - eq_layer1
+      - DATA_TYPE_standard_equivalent_sources_parameters.csv
+      - DATA_TYPE_standard_l_curve_metrics
+      - figura de comparacao entre campo obs e campo predito pela camada equivalente
+    - input
+      - model2_grav.csv
+      - model2_mag.csv
+      - figuras e metadata file com informações da fonte
+
+A pasta **eq_layer1** foi criada para guardar os resultados da camada equivalente criada pelo arquivo de mesmo nome. Assim, toda vez que você criar uma nova camada com nome diferente, uma pasta nova será criada. Isso permite que voce execute transformações para cada camada equivalente de forma isolada. Nessa pasta temos os seguintes arquivos:
+
+- DATA_TYPE_standard_equivalent_sources_parameters.csv: arquivo com as informações dos prismas da camada e o valor da propriedade física estimada
+- DATA_TYPE_standard_l_curve_metrics: arquivo com informações da curva L, método usado para resolver o sistema de equações da inversão
+
+Para executar uma transformação, primeiro é preciso criar o arquivo de configuração referente a tal transformação. Na pasta **config_templates** existe alguns exemplos de como fazer tal, abaixo está o arquivo para continuação para cima:
+
+```json
+{
+    "eq_layer_config": "eq_layer1",
+    "transformation_type": "upward_continuation",
+    "data_type": "magnetic",
+    "execute": true,
+    "parameters": {
+        "dz": 500
+    }
+    
+}
+```
+
+Nesse arquivo tem-se a determinação de:
+
+- eq_layer_config: é o arquivo que contém as informações da camada equivalente que será usada de input para a transformação
+- transformation_type: nome da transformação
+- data_type: tipo de dado
+- execute: flag para confirmar execução da transformação
+- parameters: aqui dentro ficam os parametros especificos da transformação, no caso da continuação para cima é a altura do plano de observação desejado
+
+Com uma camada equivalente já construída, para executar a transformação basta digitar no terminal:
+
+```shell
+python run_ceq.py --dataset DATASET_NAME --type DATA_TYPE --trans-config TRANSFORMATION_FILENAME 
+```
+
+Quando esta tarefa for executada, o diretório da dataset mudará para:
+
+- data
+  - model2
+    - config
+      - eq_layer1.json
+    - eq_layer1
+      - DATA_TYPE_standard_equivalent_sources_parameters.csv
+      - DATA_TYPE_standard_l_curve_metrics
+      - figura de comparacao entre campo obs e campo predito pela camada equivalente
+      - transformations
+        - TRANSFORMATION_FILENAME
+          - resultados da transformacao aqui
+    - input
+      - model2_grav.csv
+      - model2_mag.csv
+      - figuras e metadata file com informações da fonte
+
+Essa nova organização permite que eu possa fazer diversas transformações para uma única camada.
 
 ## A fazer
 
