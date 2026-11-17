@@ -50,41 +50,51 @@ import inversion_stage as inv_stage
 PRISM_COLUMNS = ["West", "East", "South", "North", "Bottom", "Top"]
 
 
-def run_poisson_ratio(dataset_name: str):
-    print(f"\n--- Starting Poisson Ratio (layer ratio) for {dataset_name} ---")
+def run_poisson_ratio(dataset_name: str, poisson_config_name: str):
+    print(f"\n--- Starting Poisson Ratio (layer ratio) for {dataset_name} ({poisson_config_name}) ---")
 
-    config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
+    # Read specific Poisson configuration
+    poisson_config = ut.find_read_json_file(DATA_FOLDER / dataset_name / "config", poisson_config_name)
     
-    # Extract from the new nested structures
-    params = config.get("joint_analysis", {}).get("poisson_ratio", {})
-    proj = config.get("project_settings", {})
-
-    if not params.get("execute", False):
-        print("Skipping poisson_ratio (execute=False)")
+    if not poisson_config.get("execute", False):
+        print(f"Skipping {poisson_config_name} (execute=False)")
         return None
 
-    # Fetch filenames from project_settings
+    eq_layer_name = poisson_config["eq_layer_config"]
+    params = poisson_config["parameters"]
+    
+    # Read the parent equivalent layer config to fetch file names
+    eq_config = ut.find_read_json_file(DATA_FOLDER / dataset_name / "config", f"{eq_layer_name}.json")
+    proj = eq_config.get("project_settings", {})
+
     gravity_file = proj.get("gravity_file")
     magnetic_file = proj.get("magnetic_file")
 
     if not gravity_file or not magnetic_file:
-        raise ValueError("Both gravity_file and magnetic_file must be defined in project_settings.")
+        raise ValueError("Both gravity_file and magnetic_file must be defined in the parent project_settings.")
 
     threshold = params.get("density_threshold", 0.05)
     mu0_range = (float(params.get("mu0_min", 1.0e-6)),
                  float(params.get("mu0_max", 1.0e4)),
                  int(params.get("steps", 30)))
 
-    dirpath = DATA_FOLDER / dataset_name / "output"
+    # Setup directories
+    poisson_name = Path(poisson_config_name).stem
+    layer_dirpath = DATA_FOLDER / dataset_name / eq_layer_name
+    out_dirpath = layer_dirpath / "transformations" / poisson_name
+    out_dirpath.mkdir(exist_ok=True, parents=True)
 
     # # ---------------------------------------------------------
     # # 1 and 2. Equivalent layers: gravity first, then magnetic
     # # ---------------------------------------------------------
-    inv_stage.run_inversion(dataset_name, data_type="gravity", filename=gravity_file, mu0_range=mu0_range)
-    inv_stage.run_inversion(dataset_name, data_type="magnetic", filename=magnetic_file, mu0_range=mu0_range)
+    # Run the inversions using the parent config for parameters, but with scaled mu0_range
+    eq_config_file = f"{eq_layer_name}.json"
+    inv_stage.run_inversion(dataset_name, "gravity", eq_config_file, gravity_file, mu0_range, output_dir=out_dirpath)
+    inv_stage.run_inversion(dataset_name, "magnetic", eq_config_file, magnetic_file, mu0_range, output_dir=out_dirpath)
 
-    df_grav = pd.read_csv(dirpath / "gravity_poisson_scaled_equivalent_sources_parameters.csv")
-    df_mag = pd.read_csv(dirpath / "magnetic_poisson_scaled_equivalent_sources_parameters.csv")
+    # Load scaled results from the equivalent layer directory
+    df_grav = pd.read_csv(out_dirpath / "gravity_poisson_scaled_equivalent_sources_parameters.csv")
+    df_mag = pd.read_csv(out_dirpath / "magnetic_poisson_scaled_equivalent_sources_parameters.csv")
 
     prisms_grav = df_grav[PRISM_COLUMNS].to_numpy()
     prisms_mag = df_mag[PRISM_COLUMNS].to_numpy()
@@ -111,7 +121,9 @@ def run_poisson_ratio(dataset_name: str):
     df_export["P_grav"] = p_grav
     df_export["P_mag"] = p_mag
     df_export["M_rho"] = ratio
-    df_export.to_csv(dirpath / "poisson_layer_ratio.csv", index=False)
+    
+    # Save into the isolated Poisson transformation folder
+    df_export.to_csv(out_dirpath / "poisson_layer_ratio.csv", index=False)
 
     # # ---------------------------------------------------------
     # # Plot (prism centres, grid sorted by Y then X as in the inversion)
@@ -120,11 +132,12 @@ def run_poisson_ratio(dataset_name: str):
     grid_shape = (int(np.sqrt(N)), int(np.sqrt(N)))
     easting = 0.5 * (prisms_grav[:, 0] + prisms_grav[:, 1])
     northing = 0.5 * (prisms_grav[:, 2] + prisms_grav[:, 3])
+    
     ut.plot_field_contourf(
         easting.reshape(grid_shape), northing.reshape(grid_shape),
         ratio.reshape(grid_shape), "Poisson ratio (layer ratio)",
         "Easting (m)", "Northing (m)", "M/rho (A m²/kg)",
-        dirpath / "poisson_layer_ratio.png", show=False
+        out_dirpath / "poisson_layer_ratio.png", show=False
     )
 
     return ratio

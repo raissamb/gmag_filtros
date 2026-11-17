@@ -42,8 +42,10 @@ import modules.kernel as kn
 
 def run_inversion(dataset_name: str,
                   data_type: str | None, 
+                  config_name: str,
                   filename: str | None, 
-                  mu0_range: tuple | None):
+                  mu0_range: tuple | None,
+                output_dir: Path | None = None):
     """
     Builds the equivalent layer of one dataset.
 
@@ -61,7 +63,7 @@ def run_inversion(dataset_name: str,
     # # ---------------------------------------------------------
     # # Read the single unified configuration file
     # # ---------------------------------------------------------
-    config = ut.find_read_json_file(DATA_FOLDER / dataset_name, "pipeline_config.json")
+    config = ut.find_read_json_file(DATA_FOLDER / dataset_name / "config", config_name)
     proj = config["project_settings"]
     cols = config["data_columns"]
     inv = config["inversion_parameters"]
@@ -93,10 +95,24 @@ def run_inversion(dataset_name: str,
     cfg_reg_max = inv.get("reg_max", 1e2)
     cfg_steps = inv.get("steps", 20)
 
-    dirpath = DATA_FOLDER / dataset_name / "output"
+    # Use the custom output_dir if provided, otherwise default to the eq layer folder
+    if output_dir is not None:
+        dirpath = output_dir
+    else:
+        layer_name = Path(config_name).stem
+        dirpath = DATA_FOLDER / dataset_name / layer_name
+        
     dirpath.mkdir(exist_ok=True, parents=True)
 
-    df = pd.read_csv(DATA_FOLDER / dataset_name / filename)
+    # --- NEW EXISTENCE CHECK ---
+    run_type = "poisson_scaled" if mu0_range is not None else "standard"
+    output_file = dirpath / f"{data_type}_{run_type}_equivalent_sources_parameters.csv"
+    if output_file.exists():
+        print(f"Equivalent layer already exists at {output_file.name}. Skipping inversion.")
+        return
+    # ---------------------------
+
+    df = pd.read_csv(DATA_FOLDER / dataset_name / "input" / filename)
     df = df.sort_values(by=["Y", "X"]).reset_index(drop=True)
     
     easting = df[easting_col].to_numpy()
