@@ -27,11 +27,9 @@ def export_synthetic_data(
     inc: float, 
     dec: float,
     DATA_FOLDER: Path,
-    EQ_LAYER_Z_TOP: float,
-    EQ_LAYER_Z_BOTTOM: float,
 ):
     """Saves arrays to CSV files and generates the metadata and true source configs."""
-    datapath = DATA_FOLDER / model_name
+    datapath = DATA_FOLDER / model_name / "input"
     datapath.mkdir(exist_ok=True, parents=True)
     
     easting, northing, upwards = coords
@@ -46,16 +44,6 @@ def export_synthetic_data(
     # Magnetic export
     mag_array = np.column_stack((easting.ravel(), northing.ravel(), upwards.ravel(), tfa_noisy.ravel()))
     np.savetxt(datapath / f"{model_name}_mag.csv", mag_array, delimiter=",", header=header, comments="", fmt="%.6f")
-    
-    # Create Pipeline Config
-    create_pipeline_config(
-        savepath=datapath,
-        gravity_file=f"{model_name}_grav.csv",
-        magnetic_file=f"{model_name}_mag.csv",
-        z_top=EQ_LAYER_Z_TOP,
-        z_bottom=EQ_LAYER_Z_BOTTOM,
-        incf=inc, decf=dec, incs=inc, decs=dec
-    )
     
     # Create True Source Config
     true_source_config = {
@@ -72,85 +60,6 @@ def export_synthetic_data(
     print(f"True source config successfully saved to: {source_filepath}")
         
     return datapath
-
-
-
-def create_pipeline_config(
-    savepath: Path,
-    gravity_file: str,
-    magnetic_file: str,
-    easting_col: str = "X",
-    northing_col: str = "Y",
-    upwards_col: str = "Z",
-    field: str = "obs",
-    z_top: float = -300.0,
-    z_bottom: float = -800.0,
-    incf: float = 90.0,
-    decf: float = 0.0,
-    incs: float = 90.0,
-    decs: float = 0.0,
-    reg_min: float = 1e-6,
-    reg_max: float = 1e2,
-    steps: int = 20
-) -> None:
-    """
-    Creates and saves the unified pipeline configuration (pipeline_config.json).
-    """
-    config = {
-        "project_settings": {
-            "gravity_file": gravity_file,
-            "magnetic_file": magnetic_file
-        },
-        "data_columns": {
-            "easting_col": easting_col,
-            "northing_col": northing_col,
-            "upwards_col": upwards_col,
-            "field": field
-        },
-        "inversion_parameters": {
-            "z_top": z_top,
-            "z_bottom": z_bottom,
-            "incf": incf,
-            "decf": decf,
-            "incs": incs,
-            "decs": decs,
-            "reg_min": reg_min,
-            "reg_max": reg_max,
-            "steps": steps
-        },
-        "magnetic_transformations": {
-            "upward_continuation": {
-                "execute": False,
-                "dz": 500
-            },
-            "reduction_to_pole": {
-                "execute": False,
-                "inc_new": 90,
-                "dec_new": 0
-            }
-        },
-        "gravity_transformations": {
-            "upward_continuation": {
-                "execute": False,
-                "dz": 200
-            }
-        },
-        "joint_analysis": {
-            "poisson_ratio": {
-                "execute": False,
-                "density_threshold": 0.05,
-                "mu0_min": 1e-6,
-                "mu0_max": 1e4,
-                "steps": 30
-            }
-        }
-    }
-    
-    filepath = savepath / "pipeline_config.json"
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=4)
-    print(f"Pipeline config successfully saved to: {filepath}")
-
 
 
 def find_read_json_file(main_dir: Path, pattern: str) -> dict:
