@@ -1,0 +1,10 @@
+{
+    "eq_layer_config": "eq_layer1",
+    "execute": true,
+    "parameters": {
+        "density_threshold": 0.05,
+        "mu0_min": 1e-6,
+        "mu0_max": 1e4,
+        "steps": 30
+    }
+}
