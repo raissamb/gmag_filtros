@@ -16,6 +16,9 @@
         "decf": 12.0,
         "incs": 45.0,
         "decs": 12.0,
+        "solver": "cholesky",
+        "reg_selector": "l_curve",
+        "noise_sigma": "null",
         "reg_min": 1e-6,
         "reg_max": 1e2,
         "steps": 20

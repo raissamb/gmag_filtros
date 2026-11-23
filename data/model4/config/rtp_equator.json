@@ -1,0 +1,10 @@
+{
+    "execute": true,
+    "eq_layer_config": "eq_equator",
+    "transformation_type": "reduction_to_pole",
+    "data_type": "magnetic",
+    "parameters": {
+        "inc_new": 90.0,
+        "dec_new": 0.0
+    }
+}
