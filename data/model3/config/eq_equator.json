@@ -14,7 +14,7 @@
         "z_bottom": -400.0,
         "incs": 10.0,
         "decs": 12.0,
-        "solver": "bvls",
+        "solver": "trf",
         "reg_selector": "discrepancy",
         "noise_sigma": 1.24,
         "reg_min": 1e-3,
