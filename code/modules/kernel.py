@@ -13,6 +13,7 @@ import pandas as pd
 import tracemalloc
 import time
 from scipy.linalg import cho_factor, cho_solve
+from scipy.optimize import lsq_linear
 from typing import Optional
 
 
@@ -661,6 +662,121 @@ def compute_layer_ratio(
     return ratio
 
 
+
+def build_difference_matrix(df_sub: pd.DataFrame, N: int) -> sp.csr_matrix:
+    """
+    Builds the first-order neighbor difference matrix R such that R^T R == RTR.
+    Uses the exact same row-major (Y, X) grid ordering as build_rtr_with_profiling.
+    """
+    df_sorted = df_sub.sort_values(by=["Y", "X"]).reset_index(drop=True)
+    nx = len(np.unique(df_sorted["X"].to_numpy()))
+    ny = len(np.unique(df_sorted["Y"].to_numpy()))
+
+    tags_grid = np.arange(N).reshape((ny, nx)).tolist()
+    connections = find_all_connections(tags_grid)
+
+    R = sp.lil_matrix((len(connections), N), dtype=np.float64)
+    for k, (src_id, nbr_id, _) in enumerate(connections):
+        R[k, src_id] = 1.0
+        R[k, nbr_id] = -1.0
+    return R.tocsr()
+
+
+def solve_positive_layer(
+    G: np.ndarray, d: np.ndarray, R_dense: np.ndarray, mu: float, method: str = "bvls",
+) -> np.ndarray:
+    """
+    Solves min ||G p - d||^2 + mu ||R p||^2 subject to p >= 0 using scipy.optimize.lsq_linear ('bvls' or 'trf').
+    """
+    A = np.vstack([G, np.sqrt(mu) * R_dense])
+    b = np.concatenate([d, np.zeros(R_dense.shape[0])])
+    result = lsq_linear(A, b, bounds=(0.0, np.inf), method=method)
+    return np.maximum(result.x, 0.0)
+
+
+def scan_positive_layer(
+    G: np.ndarray,
+    d: np.ndarray,
+    R_dense: np.ndarray,
+    reg_min: float,
+    reg_max: float,
+    steps: int,
+    method: str = "bvls",
+) -> tuple[pd.DataFrame, float, float]:
+    """
+    Sweeps a logarithmic range of mu values with p >= 0 ('bvls' or 'trf'),
+    tracking execution time and peak memory.
+    """
+    tracemalloc.start()
+    t0 = time.perf_counter()
+
+    reg_range = np.logspace(np.log10(reg_min), np.log10(reg_max), int(steps))
+    records = []
+    print(f"Scanning {method.upper()} (p >= 0) across {len(reg_range)} regularization steps...")
+
+    for mu in reg_range:
+        p_est = solve_positive_layer(G, d, R_dense, float(mu), method=method)
+        pred_d = G @ p_est
+        residual_norm = float(np.linalg.norm(pred_d - d))
+        model_norm = float(np.linalg.norm(R_dense @ p_est))
+        rmse = float(np.sqrt(np.mean((pred_d - d) ** 2)))
+
+        records.append({
+            "reg_value": float(mu),
+            "residual_norm": residual_norm,
+            "model_norm": model_norm,
+            "rmse": rmse,
+            "p_est": p_est,
+        })
+
+    t1 = time.perf_counter()
+    _, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    sweep_time = t1 - t0
+    peak_ram_mb = peak_mem / (1024 ** 2)
+    print(f"{method.upper()} Sweep Time: {sweep_time:.2f} s | Peak Memory: {peak_ram_mb:.2f} MB")
+
+    return pd.DataFrame(records), sweep_time, peak_ram_mb
+
+
+def select_by_l_curve(df_metrics: pd.DataFrame) -> dict:
+    """
+    Selects the optimal regularization parameter via geometric maximum curvature
+    on the log-log L-curve.
+    """
+    x = np.log10(df_metrics["residual_norm"].to_numpy())
+    y = np.log10(df_metrics["model_norm"].to_numpy())
+    p1 = np.array([x[0], y[0]])
+    p2 = np.array([x[-1], y[-1]])
+
+    coords = np.column_stack((x, y))
+    vec_line = p2 - p1
+    vec_points = p1 - coords
+
+    cross_2d = (vec_line[0] * vec_points[:, 1]) - (vec_line[1] * vec_points[:, 0])
+    distances = np.abs(cross_2d) / np.linalg.norm(vec_line)
+
+    best_idx = int(np.argmax(distances))
+    return df_metrics.iloc[best_idx].to_dict()
+
+
+def select_by_discrepancy(df_metrics: pd.DataFrame, sigma: float) -> dict:
+    """
+    Morozov's discrepancy principle: selects the largest mu whose data misfit
+    RMSE remains within the noise floor (rmse <= sigma).
+    """
+    within = df_metrics[df_metrics["rmse"] <= sigma]
+    if within.empty:
+        print("WARNING: No mu reached the noise level; falling back to lowest RMSE.")
+        return df_metrics.loc[df_metrics["rmse"].idxmin()].to_dict()
+    return within.loc[within["reg_value"].idxmax()].to_dict()
+
+
+
+
+
+#######################################################
 
 # def _dircos(incl, decl, azim):
 #     """
