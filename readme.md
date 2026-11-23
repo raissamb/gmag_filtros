@@ -122,6 +122,18 @@ Nessa pasta estão os datasets a serem analizados. Cada subpasta aqui deve ser u
 
 Aqui tem templates para criação de arquivos de configuração da camada equivalente e das transformações.
 
+## Equivalent Layer Solvers
+
+The inversion solver is configured via `"solver"` inside `inversion_parameters` in the equivalent layer JSON file.
+
+| Solver | Constraint | Scaling / Speed | When to Use |
+| :--- | :--- | :--- | :--- |
+| **`cholesky`** *(default)* | Unconstrained ($p \in \mathbb{R}$) | Very fast ($G^T G$ precomputed once) | Gravity data, Poisson ratio, upward/downward continuation, and high-latitude magnetic data. |
+| **`bvls`** | Positivity ($p \ge 0$) | Slow for $N > 1000$ (active-set dense solver) | Low-latitude magnetic RTP on small grids ($N \lesssim 1000$) under strictly induced magnetization. |
+| **`trf`** | Positivity ($p \ge 0$) | Much faster than `bvls` on medium/large grids | Low-latitude magnetic RTP on larger grids ($N > 1000$) under strictly induced magnetization. |
+
+> **Note on Positivity Constraints (`bvls` and `trf`):** Imposing $p \ge 0$ eliminates neighbor sign oscillations that cause striation artifacts in low-latitude Reduction to the Pole (RTP). It assumes strictly induced magnetization with positive susceptibility contrast and is **not** valid for gravity inversions or bodies with strong remanence.
+
 ## Como usar o run_ceq.py
 
 Antes de qualquer coisa, garanta que o terminal esteja aberto (e com ambiente virtual ativado) na pasta onde está o run_ceq.py, ou seja, no terminal deve ter um caminho desse tipo: **seu_caminho/gmag_filtros/code/equivalent_layer**.
