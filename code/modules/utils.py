@@ -16,6 +16,21 @@ import modules.kernel as kn
 
 ############ I/O Functions
 
+def resolve_dataset_file(dataset_dir: Path, filename: str) -> Path:
+    """
+    Resolves a file path relative to the dataset directory.
+    Falls back to dataset_dir / 'input' / filename for backward compatibility.
+    """
+    direct_path = dataset_dir / filename
+    if direct_path.exists():
+        return direct_path
+    input_path = dataset_dir / "input" / filename
+    if input_path.exists():
+        return input_path
+    raise FileNotFoundError(
+        f"Could not find '{filename}' in '{dataset_dir}' or '{dataset_dir / 'input'}'."
+    )
+
 def export_synthetic_data(
     model_name: str, 
     coords: tuple, 

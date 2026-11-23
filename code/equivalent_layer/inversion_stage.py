@@ -89,6 +89,19 @@ def run_inversion(dataset_name: str,
     z_bottom = inv["z_bottom"]
     incs = inv.get("incs", 90.0)
     decs = inv.get("decs", 0.0)
+    solver = inv.get("solver", "cholesky").lower()
+    reg_selector = inv.get("reg_selector", "l_curve").lower()
+    noise_sigma = inv.get("noise_sigma", None)
+
+    if solver in ["bvls", "trf"] and data_type in ["gravity", "grav"]:
+        raise ValueError(
+            f"Solver '{solver}' with positivity constraint (p >= 0) is not valid for "
+            "gravity inversions where negative density contrasts may occur."
+        )
+    if reg_selector == "discrepancy" and noise_sigma is None:
+        raise ValueError(
+            "reg_selector='discrepancy' requires 'noise_sigma' to be set in inversion_parameters."
+        )
 
     # Read L-curve parameters from config, with safe fallbacks
     cfg_reg_min = inv.get("reg_min", 1e-6)
@@ -112,7 +125,8 @@ def run_inversion(dataset_name: str,
         return
     # ---------------------------
 
-    df = pd.read_csv(DATA_FOLDER / dataset_name / "input" / filename)
+    input_path = ut.resolve_dataset_file(DATA_FOLDER / dataset_name, filename)
+    df = pd.read_csv(input_path)
     df = df.sort_values(by=["Y", "X"]).reset_index(drop=True)
     
     easting = df[easting_col].to_numpy()
@@ -133,7 +147,6 @@ def run_inversion(dataset_name: str,
     # # ---------------------------------------------------------
     # # Build Jacobian matrix
     # # ---------------------------------------------------------
-
     if data_type in ["magnetic", "mag"]:
         G, _, _ = kn.build_magnetic_jacobian_with_profiling(
             N, easting, northing, upwards, prisms_layer, incs, decs
@@ -155,7 +168,7 @@ def run_inversion(dataset_name: str,
     # # Solve system
     # # ---------------------------------------------------------
     if mu0_range is None:
-        # L-curve: Use absolute limits defined in pipeline_config.json
+        # L-curve: Use absolute limits defined in eq_layer_config.json
         reg_min, reg_max, steps = cfg_reg_min, cfg_reg_max, cfg_steps
         scale = 1.0
     else:
@@ -168,15 +181,29 @@ def run_inversion(dataset_name: str,
         print(f"Scaled L-curve: mu0 from {mu0_min:.1e} to {mu0_max:.1e} "
               f"({int(steps)} steps), scale tr(G^T G)/tr(R^T R) = {scale:.3e}")
 
-    df_metrics, best_solution, _, _ = kn.run_tikhonov_l_curve_scan_ces(
-        G, d_obs, RTR, reg_min, reg_max, int(steps)
-    )
+    if solver == "cholesky":
+        df_metrics, _, _, _ = kn.run_tikhonov_l_curve_scan_ces(
+            G, d_obs, RTR, reg_min, reg_max, int(steps)
+        )
+    elif solver in ["bvls", "trf"]:
+        R = kn.build_difference_matrix(df, N)
+        df_metrics, _, _ = kn.scan_positive_layer(
+            G, d_obs, R.toarray(), reg_min, reg_max, int(steps), method=solver
+        )
+    else:
+        raise ValueError(f"Unknown solver '{solver}'. Expected 'cholesky', 'bvls', or 'trf'.")
+
+    if reg_selector == "l_curve":
+        best_solution = kn.select_by_l_curve(df_metrics)
+    elif reg_selector == "discrepancy":
+        best_solution = kn.select_by_discrepancy(df_metrics, float(noise_sigma))
+    else:
+        raise ValueError(f"Unknown reg_selector '{reg_selector}'. Expected 'l_curve' or 'discrepancy'.")
 
     mu_opt = best_solution["reg_value"]
     p_tilde = best_solution["p_est"]
-    rmse_opt = best_solution["rmse"]
     if mu0_range is not None:
-        print(f"L-curve choice: mu0 = {mu_opt / scale:.2e}")
+        print(f"{reg_selector} choice: mu0 = {mu_opt / scale:.2e}")
 
     
     # # ---------------------------------------------------------

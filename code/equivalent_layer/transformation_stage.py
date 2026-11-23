@@ -40,6 +40,26 @@ DATA_FOLDER = PROJECT_HOME / "data"
 import modules.utils as ut
 import modules.kernel as kn
 
+#--------------------------
+
+# Suffixes
+TRANS_SUFFIXES = {
+    "upward_continuation": "_uc",
+    "downward_continuation": "_dc",
+    "reduction_to_pole": "_rtp",
+}
+
+def get_output_field_name(input_field: str, trans_type: str, params: dict) -> str:
+    if "output_field" in params:
+        return params["output_field"]
+    base_field = input_field
+    for suffix in ("_transformed", "_uc", "_dc", "_rtp"):
+        if base_field.endswith(suffix):
+            base_field = base_field[: -len(suffix)]
+            break
+    return f"{base_field}{TRANS_SUFFIXES.get(trans_type, '_transformed')}"
+
+
 def run_transformations(dataset_name: str, trans_config_name: str):
     print(f"\n--- Starting Field Transformations for {dataset_name} ---")
 
@@ -82,7 +102,8 @@ def run_transformations(dataset_name: str, trans_config_name: str):
     dirpath.mkdir(exist_ok=True, parents=True)
 
     # 1. Load the original observation data so we can copy it into df_export
-    df_obs = pd.read_csv(DATA_FOLDER / dataset_name / "input" / filename)
+    input_path = ut.resolve_dataset_file(DATA_FOLDER / dataset_name, filename)
+    df_obs = pd.read_csv(input_path)
     df_obs = df_obs.sort_values(by=["Y", "X"]).reset_index(drop=True)
     d_obs = df_obs[field].to_numpy()
     easting = df_obs[easting_col].to_numpy()
@@ -99,6 +120,9 @@ def run_transformations(dataset_name: str, trans_config_name: str):
     prisms_layer = df_sources[["West", "East", "South", "North", "Bottom", "Top"]].to_numpy()
     p_est = df_sources["P_est"].to_numpy()
 
+    # --- TRANSFORMATION TREE
+    
+    ## Continuation
     if trans_type in ["upward_continuation", "downward_continuation"]:
         dz = params.get("dz", 0)
         print(f"\nRunning {trans_type} (dz={dz}m)...")
@@ -112,7 +136,8 @@ def run_transformations(dataset_name: str, trans_config_name: str):
         # Define df_export by copying df_obs
         df_export = df_obs.copy()
         df_export[upwards_col] = new_upwards
-        df_export[f"{field}_transformed"] = d_transformed
+        out_col = get_output_field_name(field, trans_type, params)
+        df_export[out_col] = d_transformed
         
         output_file = dirpath / f"{data_type}_{trans_type}_{dz}m.csv"
         df_export.to_csv(output_file, index=False)
@@ -123,7 +148,17 @@ def run_transformations(dataset_name: str, trans_config_name: str):
             f"{trans_type}", dirpath / f"{data_type}_{trans_type}_{dz}m.png", "nT", show=False
         )
 
+    ## RTP
     elif trans_type == "reduction_to_pole":
+        solver_used = inv.get("solver", "cholesky").lower()
+        neg_count = int(np.count_nonzero(p_est < 0.0))
+        if solver_used not in ["bvls", "trf"] or neg_count > 0:
+            print(
+                f"WARNING: Running RTP on equivalent layer '{eq_layer_name}' "
+                f"(solver='{solver_used}', negative magnetizations={neg_count}). "
+                f"At low inclinations, use solver='bvls' to avoid striation artifacts."
+            )
+        
         inc_new = params.get("inc_new", 90.0)
         dec_new = params.get("dec_new", 0.0)
         print(f"\nRunning {trans_type} to Inc:{inc_new}, Dec:{dec_new}...")
@@ -136,7 +171,8 @@ def run_transformations(dataset_name: str, trans_config_name: str):
         
         # Define df_export by copying df_obs
         df_export = df_obs.copy()
-        df_export[f"{field}_rtp"] = d_transformed
+        out_col = get_output_field_name(field, trans_type, params)
+        df_export[out_col] = d_transformed
         
         output_file = dirpath / f"{data_type}_{trans_type}.csv"
         df_export.to_csv(output_file, index=False)

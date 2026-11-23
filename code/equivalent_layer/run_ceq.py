@@ -11,8 +11,9 @@ if str(CODE_ROOT) not in sys.path:
 import inversion_stage as inv_stage
 import transformation_stage as trans_stage
 import poisson_stage
+import separation_stage
 
-def main(dataset_name: str, eq_config: str, trans_config: str, poisson_config: str, data_type: str):
+def main(dataset_name: str, eq_config: str, trans_config: str, poisson_config: str, sep_config: str, data_type: str):
     if data_type == "mag":
         data_type = "magnetic"
     elif data_type == "grav":
@@ -26,6 +27,8 @@ def main(dataset_name: str, eq_config: str, trans_config: str, poisson_config: s
         trans_stage.run_transformations(dataset_name, trans_config)
     if poisson_config:
         poisson_stage.run_poisson_ratio(dataset_name, poisson_config)
+    if sep_config:
+        separation_stage.run_separation(dataset_name, sep_config)
         
     print("\n==== Pipeline Complete ====")
 
@@ -36,7 +39,8 @@ if __name__ == "__main__":
     parser.add_argument("--eq-config", type=str, help="Equivalent layer config file (e.g., eq_layer1.json)")
     parser.add_argument("--trans-config", type=str, help="Transformation config file (e.g., rtp1.json)")
     parser.add_argument("--poisson-config", type=str, help="Poisson ratio config file")
+    parser.add_argument("--sep-config", type=str, help="Regional-residual separation config file")
     
     args = parser.parse_args()
-    main(args.dataset, args.eq_config, args.trans_config, args.poisson_config, args.type)
+    main(args.dataset, args.eq_config, args.trans_config, args.poisson_config, args.sep_config, args.type)
 
