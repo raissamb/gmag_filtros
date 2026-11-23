@@ -33,7 +33,7 @@ import modules.constants as ct
 # =========================================================
 # 1. MODEL CONFIGURATION (Edit this section)
 # =========================================================
-MODEL_NAME = "model4"
+MODEL_NAME = "model3"
 
 # Grid parameters
 REGION = (0, 5000, 0, 5000)  # (west, east, south, north)
@@ -43,22 +43,22 @@ OBS_HEIGHT = 0.0
 # Prism Definitions [West, East, South, North, Bottom, Top]
 # You can define 1 to N prisms here
 PRISMS = [
-    [1000, 2000, 1000, 2000, -8000, -1000],  # Prism 1
-    [3000, 4000, 3000, 4000, -5000, -500],   # Prism 2
+    [2000, 3000, 2000, 3000, -3000, -1500],  # Prism 1
+    [1500, 3500, 1500, 3500, -8000, -5000],   # Prism 2
 ]
 
 # Physical Properties (must match the length of PRISMS)
 DENSITIES = [2170.0, 2600.0]        # kg/m3
-INTENSITIES = [3.0, 1.5]            # A/m
-INC, DEC = 45.0, 12.0               # Magnetization angles
+INTENSITIES = [2.0, 2.5]            # A/m
+INC, DEC = 10.0, 12.0               # Magnetization angles
 
 # Noise injection
 NOISE_PERCENTAGE = 3.0
 SEED = 32
 
 # Equivalent Layer config for the generated metadata file
-EQ_LAYER_Z_TOP = -200.0
-EQ_LAYER_Z_BOTTOM = -1000.0
+#EQ_LAYER_Z_TOP = -200.0
+#EQ_LAYER_Z_BOTTOM = -1000.0
 
 # Plot synthetic sources, define values for Z axis, positive upwards, meters
 plot_z_top = 0
