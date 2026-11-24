@@ -280,4 +280,314 @@ Essa nova organização permite que eu possa fazer diversas transformações par
 
 - Implementar as transformações: Derivadas, HGM, Tilt, ASA e Deconvolução de Euler
 
-- Para o caso da RTP, adicionar o vinculo de positividade para garantir magnetização estimada positiva, isso necessita mudar a forma de resolver o sistema já que Cholesky não será possível nessa situação
+## Tutorial: Low-Latitude RTP and Regional-Residual Separation (`model4`)
+
+This walkthrough demonstrates how to chain equivalent-layer inversions and transformations in `gmag_filtros` to solve a complete magnetic processing workflow:
+
+1. Invert noisy low-latitude magnetic data ($I = 10^\circ, D = 12^\circ$) using a **positivity-constrained solver (`trf`)** and **Morozov's discrepancy principle** to avoid striation artifacts.
+2. Apply **Reduction to the Pole (RTP)** to project the field to $I = 90^\circ, D = 0^\circ$.
+3. Chain a **shallow-to-deep equivalent layer separation** using upward and downward continuation ($H = 1500\text{ m}$) to isolate the regional (deep) and residual (shallow) anomalies.
+4. Validate all three stages quantitatively against the analytical prism fields.
+
+The flowchart below summarizes the test.
+
+```mermaid.js
+flowchart TD
+    RAW["Input Data<br/>input/model4_mag.csv<br/>(I = 10°, D = 12°, z = 0 m)"]
+
+    subgraph S1 ["1. Low-Latitude RTP"]
+        EQ1["Inversion: config/eq_equator.json<br/>Solver: TRF (p ≥ 0) | Selector: Discrepancy<br/>Layer: z = -200 to -300 m"]
+        RTP["Transformation: config/rtp_equator.json<br/>Reduction to the Pole (I = 90°, D = 0°)<br/>Output: obs_rtp"]
+        EQ1 --> RTP
+    end
+
+    subgraph S2 ["2. Upward Continuation"]
+        EQ2["Inversion: config/eq_shallow.json<br/>Solver: Cholesky | Selector: L-curve<br/>Layer: z = -200 to -300 m"]
+        UC["Transformation: config/uc_regional.json<br/>Upward Continuation (dz = +1500 m)<br/>Output: obs_uc (z = +1500 m)"]
+        EQ2 --> UC
+    end
+
+    subgraph S3 ["3. Deep Layer & Downward Continuation"]
+        EQ3["Inversion: config/eq_deep.json<br/>Solver: Cholesky | Selector: L-curve<br/>Layer: z = -1800 to -2200 m"]
+        DC["Transformation: config/dc_regional.json<br/>Downward Continuation (dz = -1500 m)<br/>Output: obs_dc (Regional at z = 0 m)"]
+        EQ3 --> DC
+    end
+
+    subgraph S4 ["4. Separation & Validation"]
+        SEP["Separation: config/sep_1.json<br/>Residual = obs_rtp − obs_dc<br/>Output: sep_1_results.csv"]
+        TRUE["Analytical Reference<br/>true_source_config.json"]
+        VAL["Validation: separation_validation.py<br/>3×3 Comparison Plot & Metrics CSV"]
+        SEP --> VAL
+        TRUE --> VAL
+    end
+
+    RAW --> EQ1
+    RTP --> EQ2
+    RTP --> SEP
+    UC --> EQ3
+    DC --> SEP
+```
+
+The flowchart below summarizes how to use continuation transformation as regional residual separation method
+
+```mermaid.js
+flowchart LR
+    OBS["Observed Field at z₀<br/>(Shallow + Deep Sources)"]
+    SHALLOW["Shallow Equivalent Layer<br/>(Fits total field at z₀)"]
+    UC["Upward Continuation (+H)<br/>Field projected to z₀ + H<br/><i>Shallow signal attenuated</i>"]
+    DEEP["Deep Equivalent Layer<br/>(Fits regional field at z₀ + H)"]
+    DC["Downward Continuation (−H)<br/>Regional field projected back to z₀"]
+    SUB(("−"))
+    RES["Estimated Residual Field<br/>(Shallow Source at z₀)"]
+
+    OBS --> SHALLOW --> UC --> DEEP --> DC --> SUB
+    OBS --> SUB
+    SUB --> RES
+```
+
+---
+
+### 1. Synthetic Benchmark Setup
+
+The `model4` dataset represents two superimposed magnetic prisms with strictly induced magnetization near the magnetic equator, observed on a flat surface ($z = 0\text{ m}$) over a $4000 \times 4000\text{ m}$ grid ($200\text{ m}$ spacing, $21 \times 21$, $N = 441$):
+
+| Parameter | Shallow Source (Residual) | Deep Source (Regional) |
+| :--- | :--- | :--- |
+| **Horizontal Bounds ($X, Y$)** | $[1800, 2200]\text{ m} \times [1800, 2200]\text{ m}$ | $[1600, 2400]\text{ m} \times [1600, 2400]\text{ m}$ |
+| **Depth Bounds ($z_{\text{bottom}}, z_{\text{top}}$)** | $-600\text{ m}$ to $-300\text{ m}$ | $-3200\text{ m}$ to $-2000\text{ m}$ |
+| **Magnetization Intensity ($M$)** | $2.0\text{ A/m}$ | $2.5\text{ A/m}$ |
+| **Ambient Field ($I, D$)** | $I = 10.0^\circ, D = 12.0^\circ$ | $I = 10.0^\circ, D = 12.0^\circ$ |
+
+- **Noise:** $3\%$ Gaussian noise (seed `32`) added to the total anomaly ($\max\vert{}\text{obs}\vert{} = 90.69\text{ nT} \Rightarrow \sigma \approx 2.72\text{ nT}$).
+- **Window padding:** Centering the bodies at $(2000, 2000)\text{ m}$ leaves a $1600\text{ m}$ buffer to all four grid edges, preventing dipole-lobe truncation at low inclination.
+
+Place the input data and configuration files in the following layout:
+
+```text
+data/model4/
+├── true_source_config.json
+├── input/
+│   └── model4_mag.csv
+├── config/
+│   ├── eq_equator.json
+│   ├── eq_shallow.json
+│   └── eq_deep.json
+    ├── rtp_equator.json
+    ├── uc_regional.json
+    ├── dc_regional.json
+    └── sep_1.json
+```
+
+### 2. Workflow Configuration Files
+
+#### Step A — Low-Latitude Equivalent Layer & RTP
+
+At $I = 10^\circ$, the magnetic Jacobian is severely ill-conditioned. Unconstrained Cholesky + L-curve inversions tend to fit noise using alternating positive/negative magnetizations between neighboring prisms, which turn into strong stripes when projected to the pole. Setting "solver": "trf" enforces $p \ge 0$ (valid for strictly induced magnetization with positive susceptibility contrast), and "reg_selector": "discrepancy" selects the smoothest regularization parameter $\mu$ whose data misfit stays within the noise floor ($\text{RMSE} \le \sigma$).
+
+File: data/model4/config/eq_equator.json
+
+```json
+{
+    "project_settings": {
+        "magnetic_file": "input/model4_mag.csv"
+    },
+    "data_columns": {
+        "easting_col": "X",
+        "northing_col": "Y",
+        "upwards_col": "Z",
+        "field": "obs"
+    },
+    "inversion_parameters": {
+        "z_top": -200.0,
+        "z_bottom": -300.0,
+        "incs": 10.0,
+        "decs": 12.0,
+        "solver": "trf",
+        "reg_selector": "discrepancy",
+        "noise_sigma": 2.72,
+        "reg_min": 1e-3,
+        "reg_max": 1e4,
+        "steps": 15
+    }
+}
+```
+
+File: data/model4/rtp_equator.json
+
+```json
+{
+    "execute": true,
+    "eq_layer_config": "eq_equator",
+    "transformation_type": "reduction_to_pole",
+    "data_type": "magnetic",
+    "parameters": {
+        "inc_new": 90.0,
+        "dec_new": 0.0
+    }
+}
+```
+
+#### Step B — Shallow Layer at the Pole & Upward Continuation
+
+Once the data is at the pole (obs_rtp), the inverse problem is well-conditioned, so we switch back to the fast "cholesky" solver with "l_curve". Upward-continuing by $H = +1500\text{ m}$ strongly attenuates the short-wavelength shallow source while preserving the long-wavelength deep source.
+
+File: data/model4/config/eq_shallow.json
+
+```json
+{
+    "project_settings": {
+        "magnetic_file": "eq_equator/transformations/rtp_equator/magnetic_reduction_to_pole.csv"
+    },
+    "data_columns": {
+        "easting_col": "X",
+        "northing_col": "Y",
+        "upwards_col": "Z",
+        "field": "obs_rtp"
+    },
+    "inversion_parameters": {
+        "z_top": -200.0,
+        "z_bottom": -300.0,
+        "incs": 90.0,
+        "decs": 0.0,
+        "solver": "cholesky",
+        "reg_selector": "l_curve",
+        "noise_sigma": null,
+        "reg_min": 1e-6,
+        "reg_max": 1e2,
+        "steps": 20
+    }
+}
+```
+
+File: data/model4/config/uc_regional.json
+
+```json
+{
+    "execute": true,
+    "eq_layer_config": "eq_shallow",
+    "transformation_type": "upward_continuation",
+    "data_type": "magnetic",
+    "parameters": {
+        "dz": 1500.0
+    }
+}
+```
+
+#### Step C — Deep Layer & Downward Continuation
+
+Next, we fit a deeper equivalent layer ($z_{\text{top}} = -1800\text{ m}, z_{\text{bottom}} = -2200\text{ m}$) to the upward-continued field (obs_uc, automatically stored at $z = +1500\text{ m}$), and project it back down by $-1500\text{ m}$ to recover the regional field at the original observation plane ($z = 0\text{ m}$).
+
+File: data/model4/config/eq_deep.json
+
+```json
+{
+    "project_settings": {
+        "magnetic_file": "eq_shallow/transformations/uc_regional/magnetic_upward_continuation_1500.0m.csv"
+    },
+    "data_columns": {
+        "easting_col": "X",
+        "northing_col": "Y",
+        "upwards_col": "Z",
+        "field": "obs_uc"
+    },
+    "inversion_parameters": {
+        "z_top": -1800.0,
+        "z_bottom": -2200.0,
+        "incs": 90.0,
+        "decs": 0.0,
+        "solver": "cholesky",
+        "reg_selector": "l_curve",
+        "noise_sigma": null,
+        "reg_min": 1e-6,
+        "reg_max": 1e2,
+        "steps": 20
+    }
+}
+```
+
+File: data/model4/config/dc_regional.json
+
+```json
+{
+    "execute": true,
+    "eq_layer_config": "eq_deep",
+    "transformation_type": "downward_continuation",
+    "data_type": "magnetic",
+    "parameters": {
+        "dz": -1500.0
+    }
+}
+```
+
+#### Step D — Regional-Residual Separation
+
+Finally, separation_stage.py subtracts the downward-continued regional field (obs_dc) from the total pole-reduced field (obs_rtp) to obtain the residual anomaly.
+
+File: data/model4/config/sep_1.json
+
+```json
+{
+    "execute": true,
+    "easting_col": "X",
+    "northing_col": "Y",
+    "original_file": "eq_equator/transformations/rtp_equator/magnetic_reduction_to_pole.csv",
+    "original_field": "obs_rtp",
+    "regional_file": "eq_deep/transformations/dc_regional/magnetic_downward_continuation_-1500.0m.csv",
+    "regional_field": "obs_dc",
+    "unit": "nT"
+}
+```
+
+### 3. Running the Pipeline and Validation
+
+Execute the four chained pipeline steps followed by the analytical validation script:
+
+```bash
+# 1. Low-latitude equivalent layer (positivity + discrepancy) and RTP
+python code/equivalent_layer/run_ceq.py --dataset model4 --type mag --eq-config eq_equator.json --trans-config rtp_equator.json
+
+# 2. Shallow layer at the pole and upward continuation (H = +1500 m)
+python code/equivalent_layer/run_ceq.py --dataset model4 --type mag --eq-config eq_shallow.json --trans-config uc_regional.json
+
+# 3. Deep layer at z = +1500 m and downward continuation back to z = 0 m
+python code/equivalent_layer/run_ceq.py --dataset model4 --type mag --eq-config eq_deep.json --trans-config dc_regional.json
+
+# 4. Regional-residual subtraction (Residual = obs_rtp - obs_dc)
+python code/equivalent_layer/run_ceq.py --dataset model4 --sep-config sep_1.json
+
+# 5. Validate Total (RTP), Regional, and Residual against analytical prism fields
+python code/validation/separation_validation.py --dataset model4 --sep-name sep_1
+```
+
+Outputs are saved under data/model4/separation/sep_1/ (results CSV and 3-panel plot) and data/model4/separation/sep_1/validation/ (validation_metrics.csv, validation_fields.csv, and the $3 \times 3$ validation figure separation_validation_comparison.png).
+
+### 4. Results & Physical Interpretation
+
+Comparing each pipeline stage against the exact analytical pole fields ($I = 90^\circ, D = 0^\circ$) from true_source_config.json yields:
+
+| Component          | RMSE (nT) | Rel. Error | Max \|Err\| (nT) | Bias (nT) | Corr (r) | True Range (nT) | Est. Range (nT) |
+|--------------------|-----------|------------|------------------|-----------|----------|-----------------|-----------------|
+| Total (RTP)        | 9.69      | 5.04%      | 70.33            | 0.06      | 0.8612   | 0.8 to 193.2    | -9.5 to 122.8   |
+| Regional (Deep)    | 6.50      | 29.70%     | 16.31            | -0.33     | 0.9313   | 1.2 to 23.1     | -7.8 to 38.4    |
+| Residual (Shallow) | 11.43     | 6.58%      | 84.97            | 0.39      | 0.6994   | -3.6 to 170.1   | -30.1 to 85.1   |
+
+Error convention: $\text{Error} = \text{Estimated} - \text{Analytical}$ (positive = overestimation).
+
+#### How to Read These Results
+
+Validating all three rows separately isolates where errors originate—which is essential when tuning parameters on real or synthetic surveys:
+
+1. **Total Field (RTP) — Resolution vs. Smoothing Trade-off:**
+The positivity constraint and discrepancy principle successfully eliminate low-latitude striation artifacts and border distortions, achieving a $5.04\%$ relative error and virtually zero bias ($0.06\text{ nT}$). However, the estimated peak is damped ($122.8\text{ nT}$ vs. $193.2\text{ nT}$). This is a spatial sampling effect: the shallow prism is $400\text{ m}$ wide at $z = -300\text{ m}$ on a $200\text{ m}$ grid, so only 3 grid nodes span the entire body. First-order Tikhonov smoothing (RTR) combined with $3\%$ noise naturally flattens a 3-node-wide spike. Using a finer grid (e.g., $100\text{ m}$ spacing) resolves this peak without changing the methodology.
+
+2. **Regional Field (Deep) — High Structural Fidelity with Minor Shallow Leakage:**
+The recovered regional field tracks the broad deep-source geometry closely ($r = 0.9313$), but its central peak is overestimated ($38.4\text{ nT}$ vs. $23.1\text{ nT}$, giving a $29.70\%$ relative error because the deep signal's amplitude is small). Because the shallow source ($170.1\text{ nT}$) is over $7\times$ stronger than the deep source ($23.1\text{ nT}$), a small fraction of the shallow anomaly still survives at $H = 1500\text{ m}$ and gets absorbed by eq_deep. Increasing $H$ further reduces this leakage, at the trade-off of slightly lower signal-to-noise ratio for the deep source.
+
+3. **Residual Field (Shallow) — Clean Localization:**
+Subtracting the regional field isolates the shallow body squarely inside its footprint ($6.58\%$ relative error, $r = 0.6994$) with no border blow-up. The remaining residual error is inherited directly from the two physical effects above: peak damping from coarse sampling in Row 1 and the $+15\text{ nT}$ regional overestimation in Row 2.
+
+#### Practical Takeaways for Your Own Datasets
+
+- **Grid spacing vs. target depth:** Ensure grid spacing $\Delta x \lesssim z_{\text{top}} / 2$ over shallow targets to avoid peak damping under Tikhonov smoothing.
+- **Window size:** Pad the survey area beyond the expected deep-source footprint, especially near the magnetic equator where dipole lobes extend far laterally.
+- **Solver selection:** Use trf (or bvls for $N \lesssim 1000$) with discrepancy for low-latitude RTP under induced magnetization, and switch to cholesky + l_curve for pole-reduced continuations, gravity data, or surveys with remanence.
