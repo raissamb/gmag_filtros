@@ -33,18 +33,18 @@ import modules.constants as ct
 # =========================================================
 # 1. MODEL CONFIGURATION (Edit this section)
 # =========================================================
-MODEL_NAME = "model4"
+MODEL_NAME = "model5"
 
 # Grid parameters
-REGION = (0, 2000, 0, 2000)  # (west, east, south, north)
+REGION = (0, 4000, 0, 4000)  # (west, east, south, north)
 SPACING = 100
 OBS_HEIGHT = 0.0
 
 # Prism Definitions [West, East, South, North, Bottom, Top]
 # You can define 1 to N prisms here
 PRISMS = [
-    [800, 1200, 800, 1200, -1200, -600],  # Prism 1
-    [600, 1400, 600, 1400, -3200, -2000],   # Prism 2
+    [1800.0, 2200.0, 1800.0, 2200.0, -600.0, -300.0],  # Prism 1
+    [1600.0, 2400.0, 1600.0, 2400.0, -3200.0, -2000.0],   # Prism 2
 ]
 
 # Physical Properties (must match the length of PRISMS)

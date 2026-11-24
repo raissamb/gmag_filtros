@@ -1,0 +1,9 @@
+{
+    "execute": true,
+    "eq_layer_config": "eq_shallow",
+    "transformation_type": "upward_continuation",
+    "data_type": "magnetic",
+    "parameters": {
+        "dz": 1500.0
+    }
+}
