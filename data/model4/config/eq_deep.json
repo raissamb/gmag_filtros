@@ -1,6 +1,6 @@
 {
     "project_settings": {
-        "magnetic_file": "eq_shallow/transformations/uc_regional/magnetic_upward_continuation_1000.0m.csv"
+        "magnetic_file": "eq_shallow/transformations/uc_regional/magnetic_upward_continuation_1500.0m.csv"
     },
     "data_columns": {
         "easting_col": "X",
@@ -9,8 +9,8 @@
         "field": "obs_uc"
     },
     "inversion_parameters": {
-        "z_top": -1200.0,
-        "z_bottom": -1500.0,
+        "z_top": -1800.0,
+        "z_bottom": -2200.0,
         "incs": 90.0,
         "decs": 0.0,
         "solver": "cholesky",

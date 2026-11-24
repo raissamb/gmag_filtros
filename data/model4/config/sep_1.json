@@ -4,7 +4,7 @@
     "northing_col": "Y",
     "original_file": "eq_equator/transformations/rtp_equator/magnetic_reduction_to_pole.csv",
     "original_field": "obs_rtp",
-    "regional_file": "eq_deep/transformations/dc_regional/magnetic_downward_continuation_-1000.0m.csv",
+    "regional_file": "eq_deep/transformations/dc_regional/magnetic_downward_continuation_-1500.0m.csv",
     "regional_field": "obs_dc",
     "unit": "nT"
 }

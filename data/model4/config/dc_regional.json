@@ -4,6 +4,6 @@
     "transformation_type": "downward_continuation",
     "data_type": "magnetic",
     "parameters": {
-        "dz": -1000.0
+        "dz": -1500.0
     }
 }
