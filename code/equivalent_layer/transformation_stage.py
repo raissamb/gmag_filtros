@@ -47,13 +47,14 @@ TRANS_SUFFIXES = {
     "upward_continuation": "_uc",
     "downward_continuation": "_dc",
     "reduction_to_pole": "_rtp",
+    "horizontal_gradient_magnitude": "_hgm",
 }
 
 def get_output_field_name(input_field: str, trans_type: str, params: dict) -> str:
     if "output_field" in params:
         return params["output_field"]
     base_field = input_field
-    for suffix in ("_transformed", "_uc", "_dc", "_rtp"):
+    for suffix in ("_transformed", "_uc", "_dc", "_rtp", "_hgm"):
         if base_field.endswith(suffix):
             base_field = base_field[: -len(suffix)]
             break
@@ -146,6 +147,31 @@ def run_transformations(dataset_name: str, trans_config_name: str):
             easting.reshape(grid_shape), northing.reshape(grid_shape),
             d_obs.reshape(grid_shape), d_transformed.reshape(grid_shape),
             f"{trans_type}", dirpath / f"{data_type}_{trans_type}_{dz}m.png", "nT", show=False
+        )
+
+    ## HGM
+    elif trans_type == "horizontal_gradient_magnitude":
+        delta = float(params.get("delta", 1.0))
+        print(f"\nRunning {trans_type} (delta={delta}m)...")
+
+        d_transformed = kn.compute_hgm_transformation(
+            N=N, easting=easting, northing=northing, upwards=upwards,
+            prisms_layer=prisms_layer, p_est=p_est, data_type=data_type,
+            delta=delta, incs=incs, decs=decs
+        )
+
+        df_export = df_obs.copy()
+        out_col = get_output_field_name(field, trans_type, params)
+        df_export[out_col] = d_transformed
+
+        output_file = dirpath / f"{data_type}_{trans_type}.csv"
+        df_export.to_csv(output_file, index=False)
+
+        unit = "nT/m" if data_type in ["mag", "magnetic"] else "mGal/m"
+        ut.plot_transformation_results(
+            easting.reshape(grid_shape), northing.reshape(grid_shape),
+            d_obs.reshape(grid_shape), d_transformed.reshape(grid_shape),
+            "Horizontal Gradient Magnitude", dirpath / f"{data_type}_{trans_type}.png", unit, show=False
         )
 
     ## RTP
