@@ -662,6 +662,95 @@ def compute_layer_ratio(
     return ratio
 
 
+def compute_horizontal_derivatives_transformation(
+    N: int, 
+    easting: np.ndarray, 
+    northing: np.ndarray, 
+    upwards: np.ndarray, 
+    prisms_layer: np.ndarray, 
+    p_est: np.ndarray,
+    data_type: str,
+    delta: float = 1.0,
+    incs: Optional[float] = None, 
+    decs: Optional[float] = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Computes the horizontal derivatives (dx, dy) of the field using the equivalent layer.
+    Uses central finite differences on the observation coordinates to build the derivative Jacobians.
+    """
+    tracemalloc.start()
+    t0 = time.perf_counter()
+
+    print("Building Transformation Jacobians for Horizontal Derivatives...")
+
+    if data_type in ["magnetic", "mag"]:
+        if incs is None or decs is None:
+            raise ValueError("Inclination and declination must be provided for magnetic data.")
+        valid_incs = float(incs)
+        valid_decs = float(decs)
+
+        # X derivative (Easting) Jacobians
+        G_x_plus, _, _ = build_magnetic_jacobian_with_profiling(N, easting + delta, northing, upwards, prisms_layer, valid_incs, valid_decs)
+        G_x_minus, _, _ = build_magnetic_jacobian_with_profiling(N, easting - delta, northing, upwards, prisms_layer, valid_incs, valid_decs)
+        G_dx = (G_x_plus - G_x_minus) / (2.0 * delta)
+
+        # Y derivative (Northing) Jacobians
+        G_y_plus, _, _ = build_magnetic_jacobian_with_profiling(N, easting, northing + delta, upwards, prisms_layer, valid_incs, valid_decs)
+        G_y_minus, _, _ = build_magnetic_jacobian_with_profiling(N, easting, northing - delta, upwards, prisms_layer, valid_incs, valid_decs)
+        G_dy = (G_y_plus - G_y_minus) / (2.0 * delta)
+
+    elif data_type in ["gravity", "grav"]:
+        # X derivative (Easting) Jacobians
+        G_x_plus, _, _ = build_gravity_jacobian_with_profiling(N, easting + delta, northing, upwards, prisms_layer)
+        G_x_minus, _, _ = build_gravity_jacobian_with_profiling(N, easting - delta, northing, upwards, prisms_layer)
+        G_dx = (G_x_plus - G_x_minus) / (2.0 * delta)
+
+        # Y derivative (Northing) Jacobians
+        G_y_plus, _, _ = build_gravity_jacobian_with_profiling(N, easting, northing + delta, upwards, prisms_layer)
+        G_y_minus, _, _ = build_gravity_jacobian_with_profiling(N, easting, northing - delta, upwards, prisms_layer)
+        G_dy = (G_y_plus - G_y_minus) / (2.0 * delta)
+    else:
+        raise ValueError("Invalid data_type for transformation.")
+
+    # Apply the transformation to the estimated parameters
+    d_dx = G_dx @ p_est
+    d_dy = G_dy @ p_est
+
+    t1 = time.perf_counter()
+    _, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    print(f"Derivatives Transformation Time: {t1 - t0:.2f} s")
+    print(f"Derivatives Transformation Peak Memory: {peak_mem / (1024 ** 2):.2f} MB")
+
+    return d_dx, d_dy
+
+
+def compute_hgm_transformation(
+    N: int, 
+    easting: np.ndarray, 
+    northing: np.ndarray, 
+    upwards: np.ndarray, 
+    prisms_layer: np.ndarray, 
+    p_est: np.ndarray,
+    data_type: str,
+    delta: float = 1.0,
+    incs: Optional[float] = None, 
+    decs: Optional[float] = None
+) -> np.ndarray:
+    """
+    Computes the Horizontal Gradient Magnitude (HGM) using the equivalent layer parameters.
+    """
+    d_dx, d_dy = compute_horizontal_derivatives_transformation(
+        N, easting, northing, upwards, prisms_layer, p_est, data_type, delta, incs, decs
+    )
+    
+    # Calculate magnitude
+    hgm = np.sqrt(d_dx**2 + d_dy**2)
+    
+    return hgm
+
+
 
 def build_difference_matrix(df_sub: pd.DataFrame, N: int) -> sp.csr_matrix:
     """
