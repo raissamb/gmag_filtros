@@ -2,6 +2,7 @@
 .venv/
 .vscode/
 .spyproject/
+data/
 output/
 refs/
 docs/
