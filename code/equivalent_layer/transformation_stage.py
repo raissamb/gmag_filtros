@@ -51,7 +51,7 @@ TRANS_SUFFIXES = {
 }
 
 def get_output_field_name(input_field: str, trans_type: str, params: dict) -> str:
-    if "output_field" in params:
+    if params.get("output_field"):
         return params["output_field"]
     base_field = input_field
     for suffix in ("_transformed", "_uc", "_dc", "_rtp", "_hgm"):
