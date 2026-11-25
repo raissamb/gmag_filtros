@@ -63,15 +63,33 @@ EQ_LAYER_Z_BOTTOM = -1000.0
 # =========================================================
 if __name__ == "__main__":
     
+    # 1. Build Grid
     coords = ut.build_scattered_observation_surface(REGION, N_POINTS, BASE_CLEARANCE, SEED)
-    gz, tfa = ut.generate_synthetic_fields(coords, PRISMS, DENSITIES, INTENSITIES, INC, DEC)
     
+    # 2. Compute Fields
+    gz, tfa = ut.generate_synthetic_fields(coords, PRISMS, DENSITIES, INTENSITIES, INC, DEC)
+
+    # 3. Add Noise
     gz_noisy = ut.add_gaussian_noise(gz, NOISE_PERCENTAGE, SEED) 
     tfa_noisy = ut.add_gaussian_noise(tfa, NOISE_PERCENTAGE, SEED) 
     
+    # 4. Export CSVs and Configs
     output_dir = ut.export_synthetic_data(MODEL_NAME, coords, gz_noisy, tfa_noisy, 
                                           PRISMS, DENSITIES, INTENSITIES, INC, DEC,
                                           DATA_FOLDER)
+
+    ut.export_survey_parameters(
+        model_name=MODEL_NAME,
+        survey_type="scattered",
+        coords=coords,
+        region=REGION,
+        prisms=PRISMS,
+        noise_percentage=NOISE_PERCENTAGE,
+        seed=SEED,
+        output_dir=output_dir,
+        base_clearance=BASE_CLEARANCE,
+        topography_type="sin_cos_draped",
+    )
 
     # 5. Visualizations
     print("Generating plots...")
@@ -103,15 +121,47 @@ if __name__ == "__main__":
         Path(output_dir / f"{MODEL_NAME}_3d_surface.png"),
         show=False
     )
+
+    ut.plot_source_footprint_and_points(
+        coords, PRISMS,
+        figname=output_dir / f"{MODEL_NAME}_source_footprint.png",
+        region_bounds=REGION,
+        show=False,
+    )
+
+    ut.plot_prisms_and_surface_3d(
+        coords, PRISMS,
+        figname=output_dir / f"{MODEL_NAME}_3d_sources_and_surface.png",
+        region_bounds=REGION,
+        show=False,
+    )
+
+
+    ut.plot_experiment_summary_slide(
+        model_name=MODEL_NAME,
+        survey_type="scattered",
+        coords=coords,
+        tfa=tfa_noisy,
+        gz=gz_noisy,
+        prisms=PRISMS,
+        inc=INC,
+        dec=DEC,
+        noise_percentage=NOISE_PERCENTAGE,
+        figname=output_dir / f"{MODEL_NAME}_slide_summary.png",
+        region_bounds=REGION,
+        show=False,
+    )
+
     
-    # 6. Create config folder with a default equivalent layer config file
-    config_folder = DATA_FOLDER / MODEL_NAME / "config"
-    config_folder.mkdir(exist_ok=True, parents=True)
-    eq_layer_config = ct.eq_layer_config
-    savepath = config_folder / "eq_layer1.json"
-    json_str = json.dumps(eq_layer_config, indent=4)
-    with open(savepath, "w") as f:
-        f.write(json_str)
+    
+    # # 6. Create config folder with a default equivalent layer config file
+    # config_folder = DATA_FOLDER / MODEL_NAME / "config"
+    # config_folder.mkdir(exist_ok=True, parents=True)
+    # eq_layer_config = ct.eq_layer_config
+    # savepath = config_folder / "eq_layer1.json"
+    # json_str = json.dumps(eq_layer_config, indent=4)
+    # with open(savepath, "w") as f:
+    #     f.write(json_str)
 
     
     print("Synthetic scattered data generation complete.")

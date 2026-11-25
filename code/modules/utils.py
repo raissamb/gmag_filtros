@@ -12,6 +12,7 @@ import json
 import verde as vd
 import harmonica as hm
 import modules.kernel as kn
+from matplotlib.patches import Rectangle
 
 
 ############ I/O Functions
@@ -75,6 +76,62 @@ def export_synthetic_data(
     print(f"True source config successfully saved to: {source_filepath}")
         
     return datapath
+
+
+def export_survey_parameters(
+    model_name: str,
+    survey_type: Literal["grid", "scattered"],
+    coords: tuple[np.ndarray, np.ndarray, np.ndarray],
+    region: tuple[float, float, float, float],
+    prisms: List[list],
+    noise_percentage: float,
+    seed: int,
+    output_dir: Path,
+    spacing: Optional[float] = None,
+    base_clearance: Optional[float] = None,
+    topography_type: Optional[str] = None,
+) -> Path:
+    """
+    Saves survey geometry, noise, and source-coverage metrics to survey_parameters.json.
+    """
+    easting, northing, upwards = coords
+    z_flat = np.asarray(upwards).ravel()
+
+    nx: Optional[int] = None
+    ny: Optional[int] = None
+    if survey_type == "grid":
+        if easting.ndim == 2:
+            ny, nx = int(easting.shape[0]), int(easting.shape[1])
+        else:
+            nx = int(len(np.unique(easting)))
+            ny = int(len(np.unique(northing)))
+
+    coverage_metrics = count_points_over_sources(coords, prisms)
+
+    survey_params: dict[str, Any] = {
+        "model_name": model_name,
+        "survey_type": survey_type,
+        "region": list(region),
+        "total_points": int(z_flat.size),
+        "nx": nx,
+        "ny": ny,
+        "spacing": spacing,
+        "base_clearance": base_clearance,
+        "topography_type": topography_type,
+        "z_min": round(float(np.min(z_flat)), 4),
+        "z_max": round(float(np.max(z_flat)), 4),
+        "z_mean": round(float(np.mean(z_flat)), 4),
+        "noise_percentage": noise_percentage,
+        "seed": seed,
+        **coverage_metrics,
+    }
+
+    filepath = output_dir / "survey_parameters.json"
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(survey_params, f, indent=4)
+
+    print(f"Survey parameters saved to: {filepath}")
+    return filepath
 
 
 def find_read_json_file(main_dir: Path, pattern: str) -> dict:
@@ -673,13 +730,6 @@ def plot_physical_property_distribution_matrix(easting: np.ndarray,
     plt.close(fig)
 
 
-
-
-
-
-
-
-
 def plot_prisms_3d(
     prisms: Union[list, tuple, np.ndarray],
     figname: Union[str, Path],
@@ -761,6 +811,351 @@ def plot_prisms_3d(
     fig.savefig(figname, dpi=300, bbox_inches="tight")
     print(f"3D Prism plot saved to: {figname}")
     
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+def count_points_over_sources(
+    coords: tuple[np.ndarray, np.ndarray, np.ndarray],
+    prisms: List[list]
+) -> dict[str, Any]:
+    """
+    Counts how many observation points fall within the horizontal footprint
+    [west, east, south, north] of each prism and across all prisms combined.
+    """
+    x = np.asarray(coords[0]).ravel()
+    y = np.asarray(coords[1]).ravel()
+    total_points = int(x.size)
+
+    points_per_prism: List[int] = []
+    any_source_mask = np.zeros(total_points, dtype=bool)
+
+    for prism in prisms:
+        west, east, south, north = prism[0], prism[1], prism[2], prism[3]
+        mask = (x >= west) & (x <= east) & (y >= south) & (y <= north)
+        points_per_prism.append(int(np.sum(mask)))
+        any_source_mask |= mask
+
+    unique_over_sources = int(np.sum(any_source_mask))
+    pct_over_sources = round((unique_over_sources / total_points) * 100.0, 2) if total_points > 0 else 0.0
+
+    return {
+        "points_over_each_prism": points_per_prism,
+        "total_unique_points_over_sources": unique_over_sources,
+        "percentage_points_over_sources": pct_over_sources,
+    }
+
+
+
+
+
+def plot_source_footprint_and_points(
+    coords: tuple[np.ndarray, np.ndarray, np.ndarray],
+    prisms: List[list],
+    figname: Union[str, Path],
+    title: str = "Observation Points Over Source Footprints",
+    region_bounds: Optional[tuple[float, float, float, float]] = None,
+    point_size: float = 12.0,
+    show: bool = False,
+) -> None:
+    """
+    2D plan view showing observation points colored by whether they fall over
+    any prism footprint, with dashed rectangles outlining each prism.
+    """
+    x = np.asarray(coords[0]).ravel()
+    y = np.asarray(coords[1]).ravel()
+
+    any_source_mask = np.zeros(x.size, dtype=bool)
+    for prism in prisms:
+        west, east, south, north = prism[0], prism[1], prism[2], prism[3]
+        any_source_mask |= (x >= west) & (x <= east) & (y >= south) & (y <= north)
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+
+    # Points outside sources
+    ax.scatter(
+        x[~any_source_mask], y[~any_source_mask],
+        s=point_size, color="steelblue", alpha=0.45, edgecolor="none",
+        label=f"Outside sources ({int(np.sum(~any_source_mask))})"
+    )
+    # Points over sources
+    ax.scatter(
+        x[any_source_mask], y[any_source_mask],
+        s=point_size * 1.3, color="crimson", alpha=0.9, edgecolor="none",
+        label=f"Over sources ({int(np.sum(any_source_mask))})"
+    )
+
+    # Draw prism footprints
+    for idx, prism in enumerate(prisms, start=1):
+        west, east, south, north = prism[0], prism[1], prism[2], prism[3]
+        rect = Rectangle(
+            (west, south), east - west, north - south,
+            linewidth=2.0, edgecolor="black", facecolor="none", linestyle="--"
+        )
+        ax.add_patch(rect)
+        ax.text(
+            west + 0.02 * (east - west), north - 0.05 * (north - south),
+            f"P{idx}", color="black", fontsize=9, fontweight="bold",
+            va="top", ha="left",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7, edgecolor="none")
+        )
+
+    if region_bounds is not None:
+        ax.set_xlim(region_bounds[0], region_bounds[1])
+        ax.set_ylim(region_bounds[2], region_bounds[3])
+
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    ax.set_xlabel("Easting (m)")
+    ax.set_ylabel("Northing (m)")
+    ax.legend(loc="upper right", framealpha=0.9)
+
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"Source footprint plot saved to: {figname}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+def plot_prisms_and_surface_3d(
+    coords: tuple[np.ndarray, np.ndarray, np.ndarray],
+    prisms: Union[list, tuple, np.ndarray],
+    figname: Union[str, Path],
+    title: str = "3D Sources and Observation Surface",
+    region_bounds: Optional[tuple[float, float, float, float]] = None,
+    z_bounds: Optional[tuple[float, float]] = None,
+    cmap: str = "terrain",
+    elev: float = 20.0,
+    azim: float = -60.0,
+    show: bool = False,
+) -> None:
+    """
+    Plots 3D rectangular prisms together with the observation surface (grid or scattered).
+    """
+    easting, northing, upwards = coords
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection="3d")
+
+    # 1. Plot observation surface (translucent so prisms remain visible underneath)
+    if easting.ndim == 2:
+        surf = ax.plot_surface(
+            easting, northing, upwards,
+            cmap=cmap, alpha=0.45, linewidth=0.2, edgecolor="grey"
+        )
+    else:
+        surf = ax.plot_trisurf(
+            easting, northing, upwards,
+            cmap=cmap, alpha=0.45, linewidth=0.2, edgecolor="grey"
+        )
+    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=12, label="Obs. Height (m)")
+
+    # 2. Plot prism wireframes
+    prisms_array = np.atleast_2d(prisms)
+    edges = [
+        [0, 1], [1, 2], [2, 3], [3, 0],
+        [4, 5], [5, 6], [6, 7], [7, 4],
+        [0, 4], [1, 5], [2, 6], [3, 7],
+    ]
+    for p in prisms_array:
+        west, east, south, north, bottom, top = p
+        x = [west, east, east, west, west, east, east, west]
+        y = [south, south, north, north, south, south, north, north]
+        z = [bottom, bottom, bottom, bottom, top, top, top, top]
+        for edge in edges:
+            ax.plot(
+                [x[edge[0]], x[edge[1]]],
+                [y[edge[0]], y[edge[1]]],
+                [z[edge[0]], z[edge[1]]],
+                color="red", linewidth=1.5
+            )
+
+    ax.set_title(title)
+    ax.set_xlabel("Easting (m)")
+    ax.set_ylabel("Northing (m)")
+    ax.set_zlabel("Elevation / Depth (m)")
+
+    if region_bounds is not None:
+        ax.set_xlim(region_bounds[0], region_bounds[1])
+        ax.set_ylim(region_bounds[2], region_bounds[3])
+    if z_bounds is not None:
+        ax.set_zlim(z_bounds[0], z_bounds[1])
+
+    ax.view_init(elev=elev, azim=azim)
+
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"Combined 3D plot saved to: {figname}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+def plot_experiment_summary_slide(
+    model_name: str,
+    survey_type: Literal["grid", "scattered"],
+    coords: tuple[np.ndarray, np.ndarray, np.ndarray],
+    tfa: np.ndarray,
+    gz: np.ndarray,
+    prisms: List[list],
+    inc: float,
+    dec: float,
+    noise_percentage: float,
+    figname: Union[str, Path],
+    region_bounds: Optional[tuple[float, float, float, float]] = None,
+    z_bounds: Optional[tuple[float, float]] = None,
+    elev: float = 20.0,
+    azim: float = -60.0,
+    point_size: float = 10.0,
+    show: bool = False,
+) -> None:
+    """
+    Generates a 16:9 2x2 summary figure of the synthetic experiment setup
+    suitable for presentation slides.
+    """
+    easting, northing, upwards = coords
+    is_grid = easting.ndim == 2
+
+    coverage = count_points_over_sources(coords, prisms)
+    total_pts = int(np.asarray(easting).size)
+    over_pts = coverage["total_unique_points_over_sources"]
+    over_pct = coverage["percentage_points_over_sources"]
+
+    fig = plt.figure(figsize=(16, 9), constrained_layout=True)
+    gs = fig.add_gridspec(2, 2)
+
+    ax_tfa = fig.add_subplot(gs[0, 0])
+    ax_gz = fig.add_subplot(gs[0, 1])
+    ax_fp = fig.add_subplot(gs[1, 0])
+    ax_3d = fig.add_subplot(gs[1, 1], projection="3d")
+
+    # --- Panel 1: TFA ---
+    if is_grid:
+        im_tfa = ax_tfa.contourf(easting, northing, tfa, cmap="viridis")
+    else:
+        im_tfa = ax_tfa.scatter(
+            easting, northing, c=tfa, cmap="viridis", s=point_size, edgecolor="none"
+        )
+    ax_tfa.set_title("Total Field Anomaly (TFA)")
+    ax_tfa.set_xlabel("Easting (m)")
+    ax_tfa.set_ylabel("Northing (m)")
+    ax_tfa.set_aspect("equal")
+    fig.colorbar(im_tfa, ax=ax_tfa, label="nT")
+
+    # --- Panel 2: g_z ---
+    if is_grid:
+        im_gz = ax_gz.contourf(easting, northing, gz, cmap="viridis")
+    else:
+        im_gz = ax_gz.scatter(
+            easting, northing, c=gz, cmap="viridis", s=point_size, edgecolor="none"
+        )
+    ax_gz.set_title("Vertical Gravity Component ($g_z$)")
+    ax_gz.set_xlabel("Easting (m)")
+    ax_gz.set_ylabel("Northing (m)")
+    ax_gz.set_aspect("equal")
+    fig.colorbar(im_gz, ax=ax_gz, label="mGal")
+
+    # --- Panel 3: 2D Source Footprints & Sampling ---
+    x_flat = np.asarray(easting).ravel()
+    y_flat = np.asarray(northing).ravel()
+    any_source_mask = np.zeros(x_flat.size, dtype=bool)
+    for prism in prisms:
+        west, east, south, north = prism[0], prism[1], prism[2], prism[3]
+        any_source_mask |= (x_flat >= west) & (x_flat <= east) & (y_flat >= south) & (y_flat <= north)
+
+    ax_fp.scatter(
+        x_flat[~any_source_mask], y_flat[~any_source_mask],
+        s=point_size * 0.8, color="steelblue", alpha=0.4, edgecolor="none",
+        label=f"Outside ({int(np.sum(~any_source_mask))})"
+    )
+    ax_fp.scatter(
+        x_flat[any_source_mask], y_flat[any_source_mask],
+        s=point_size * 1.1, color="crimson", alpha=0.9, edgecolor="none",
+        label=f"Over sources ({over_pts})"
+    )
+
+    for idx, prism in enumerate(prisms, start=1):
+        west, east, south, north = prism[0], prism[1], prism[2], prism[3]
+        rect = Rectangle(
+            (west, south), east - west, north - south,
+            linewidth=1.8, edgecolor="black", facecolor="none", linestyle="--"
+        )
+        ax_fp.add_patch(rect)
+        ax_fp.text(
+            west + 0.02 * (east - west), north - 0.05 * (north - south),
+            f"P{idx}", color="black", fontsize=8, fontweight="bold",
+            va="top", ha="left",
+            bbox=dict(boxstyle="round,pad=0.15", facecolor="white", alpha=0.75, edgecolor="none")
+        )
+
+    if region_bounds is not None:
+        ax_fp.set_xlim(region_bounds[0], region_bounds[1])
+        ax_fp.set_ylim(region_bounds[2], region_bounds[3])
+    ax_fp.set_aspect("equal")
+    ax_fp.set_title("Source Footprints & Observation Coverage")
+    ax_fp.set_xlabel("Easting (m)")
+    ax_fp.set_ylabel("Northing (m)")
+    ax_fp.legend(loc="upper right", fontsize=8, framealpha=0.9)
+
+    # --- Panel 4: 3D Sources & Observation Surface ---
+    if is_grid:
+        surf = ax_3d.plot_surface(
+            easting, northing, upwards,
+            cmap="terrain", alpha=0.45, linewidth=0.2, edgecolor="grey"
+        )
+    else:
+        surf = ax_3d.plot_trisurf(
+            easting, northing, upwards,
+            cmap="terrain", alpha=0.45, linewidth=0.2, edgecolor="grey"
+        )
+    fig.colorbar(surf, ax=ax_3d, shrink=0.6, aspect=12, label="Obs. Height (m)")
+
+    prisms_array = np.atleast_2d(prisms)
+    edges = [
+        [0, 1], [1, 2], [2, 3], [3, 0],
+        [4, 5], [5, 6], [6, 7], [7, 4],
+        [0, 4], [1, 5], [2, 6], [3, 7],
+    ]
+    for p in prisms_array:
+        west, east, south, north, bottom, top = p
+        x = [west, east, east, west, west, east, east, west]
+        y = [south, south, north, north, south, south, north, north]
+        z = [bottom, bottom, bottom, bottom, top, top, top, top]
+        for edge in edges:
+            ax_3d.plot(
+                [x[edge[0]], x[edge[1]]],
+                [y[edge[0]], y[edge[1]]],
+                [z[edge[0]], z[edge[1]]],
+                color="red", linewidth=1.4
+            )
+
+    ax_3d.set_title("3D Sources & Observation Surface")
+    ax_3d.set_xlabel("Easting (m)")
+    ax_3d.set_ylabel("Northing (m)")
+    ax_3d.set_zlabel("Elevation / Depth (m)")
+    if region_bounds is not None:
+        ax_3d.set_xlim(region_bounds[0], region_bounds[1])
+        ax_3d.set_ylim(region_bounds[2], region_bounds[3])
+    if z_bounds is not None:
+        ax_3d.set_zlim(z_bounds[0], z_bounds[1])
+    ax_3d.view_init(elev=elev, azim=azim)
+
+    # --- Slide Header ---
+    fig.suptitle(
+        f"Synthetic Experiment Setup: {model_name}  |  "
+        f"{survey_type.capitalize()} ({total_pts:,} pts, {over_pts:,} over sources / {over_pct:.1f}%)  |  "
+        f"Noise: {noise_percentage:.1f}%  |  Inc: {inc:.1f}°, Dec: {dec:.1f}°",
+        fontsize=13,
+        fontweight="bold",
+    )
+
+    fig.savefig(figname, dpi=300, bbox_inches="tight")
+    print(f"Slide summary figure saved to: {figname}")
+
     if show:
         plt.show()
     else:

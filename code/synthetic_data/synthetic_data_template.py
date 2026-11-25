@@ -87,11 +87,23 @@ if __name__ == "__main__":
     gz_noisy = ut.add_gaussian_noise(gz, NOISE_PERCENTAGE, SEED) 
     tfa_noisy = ut.add_gaussian_noise(tfa, NOISE_PERCENTAGE, SEED) 
     
-    # 4. Export CSVs and Configs (Updated to pass true source parameters)
+    # 4. Export CSVs and Configs
     output_dir = ut.export_synthetic_data(
         MODEL_NAME, coords, gz_noisy, tfa_noisy, 
         PRISMS, DENSITIES, INTENSITIES, INC, DEC,
         DATA_FOLDER, 
+    )
+
+    ut.export_survey_parameters(
+        model_name=MODEL_NAME,
+        survey_type="grid",
+        coords=coords,
+        region=REGION,
+        prisms=PRISMS,
+        noise_percentage=NOISE_PERCENTAGE,
+        seed=SEED,
+        output_dir=output_dir,
+        spacing=SPACING,
     )
     
     # 5. Visualizations
@@ -115,11 +127,59 @@ if __name__ == "__main__":
     print("Synthetic data generation complete.")
 
 
-    # 6. Create config folder with a default equivalent layer config file
-    config_folder = DATA_FOLDER / MODEL_NAME / "config"
-    config_folder.mkdir(exist_ok=True, parents=True)
-    eq_layer_config = ct.eq_layer_config
-    savepath = config_folder / "eq_layer1.json"
-    json_str = json.dumps(eq_layer_config, indent=4)
-    with open(savepath, "w") as f:
-        f.write(json_str)
+    ut.plot_source_footprint_and_points(
+        coords, PRISMS,
+        figname=output_dir / f"{MODEL_NAME}_source_footprint.png",
+        region_bounds=REGION,
+        show=False,
+    )
+
+    ut.plot_prisms_and_surface_3d(
+        coords, PRISMS,
+        figname=output_dir / f"{MODEL_NAME}_3d_sources_and_surface.png",
+        region_bounds=REGION,
+        z_bounds=(plot_z_bottom, max(plot_z_top, OBS_HEIGHT + 200.0)),
+        elev=plot_elevation,
+        azim=plot_azimuth,
+        show=False,
+    )
+
+
+    ut.plot_experiment_summary_slide(
+        model_name=MODEL_NAME,
+        survey_type="grid",
+        coords=coords,
+        tfa=tfa_noisy,
+        gz=gz_noisy,
+        prisms=PRISMS,
+        inc=INC,
+        dec=DEC,
+        noise_percentage=NOISE_PERCENTAGE,
+        figname=output_dir / f"{MODEL_NAME}_slide_summary.png",
+        region_bounds=REGION,
+        z_bounds=(plot_z_bottom, max(plot_z_top, OBS_HEIGHT + 200.0)),
+        elev=plot_elevation,
+        azim=plot_azimuth,
+        show=False,
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # # 6. Create config folder with a default equivalent layer config file
+    # config_folder = DATA_FOLDER / MODEL_NAME / "config"
+    # config_folder.mkdir(exist_ok=True, parents=True)
+    # eq_layer_config = ct.eq_layer_config
+    # savepath = config_folder / "eq_layer1.json"
+    # json_str = json.dumps(eq_layer_config, indent=4)
+    # with open(savepath, "w") as f:
+    #     f.write(json_str)
