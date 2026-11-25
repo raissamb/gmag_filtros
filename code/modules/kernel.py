@@ -574,6 +574,16 @@ def compute_rtp_transformation(
     """
     Computes the Reduction to the Pole (RTP) or arbitrary directional transformation 
     using the equivalent layer by recalculating the Jacobian with new angles.
+    
+    Parameters:
+        N, easting, northing, upwards, prisms_layer: Grid and source parameters.
+        p_est (np.ndarray): The recovered equivalent layer magnetization.
+        data_type (str): Must be "magnetic" or "mag".
+        inc_new, dec_new (float): Target geomagnetic angles.
+    
+    Returns:
+        np.ndarray: The RTP transformed data vector (d_transformed).
+
     """
     if data_type not in ["magnetic", "mag"]:
         raise ValueError("Reduction to the Pole is only applicable to magnetic data.")
@@ -858,10 +868,8 @@ def select_by_discrepancy(df_metrics: pd.DataFrame, sigma: float) -> dict:
     within = df_metrics[df_metrics["rmse"] <= sigma]
     if within.empty:
         print("WARNING: No mu reached the noise level; falling back to lowest RMSE.")
-        return df_metrics.loc[df_metrics["rmse"].idxmin()].to_dict()
-    return within.loc[within["reg_value"].idxmax()].to_dict()
-
-
+        return df_metrics.iloc[int(df_metrics["rmse"].argmin())].to_dict()
+    return within.iloc[int(within["reg_value"].argmax())].to_dict()
 
 
 
