@@ -752,7 +752,7 @@ def compute_hgm_transformation(
 
 
 
-def build_difference_matrix(df_sub: pd.DataFrame, N: int) -> sp.csr_matrix:
+def build_difference_matrix(df_sub: pd.DataFrame, N: int) -> sp.csr_array:
     """
     Builds the first-order neighbor difference matrix R such that R^T R == RTR.
     Uses the exact same row-major (Y, X) grid ordering as build_rtr_with_profiling.
